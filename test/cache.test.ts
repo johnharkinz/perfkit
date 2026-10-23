@@ -45,6 +45,22 @@ describe('provider result cache', () => {
     expect(withoutCacheFields(second)).toEqual(withoutCacheFields(first));
   });
 
+  it('stamps cachedAt, and a hit’s collectedAt, with when Google’s answer arrived, not when the call started', async () => {
+    const fetch = fakeFetch(() => {
+      perfkit?.clock.advance(3_000); // Google takes 3 s to answer.
+      return { status: 200, body: fixture('crux/current-url-phone.json') };
+    });
+    perfkit = await connectPerfkit({ fetch });
+
+    await cruxCurrent(perfkit, ARGS);
+    perfkit.clock.advance(5 * MINUTE);
+    const second = await cruxCurrent(perfkit, ARGS);
+
+    const arrived = new Date(new Date(TEST_START_TIME).getTime() + 3_000).toISOString();
+    expect(fetch.calls).toHaveLength(1);
+    expect(second).toMatchObject({ cached: true, cachedAt: arrived, collectedAt: arrived });
+  });
+
   it('misses when any part of the key changes, such as the device or the target', async () => {
     const fetch = cruxOk();
     perfkit = await connectPerfkit({ fetch });

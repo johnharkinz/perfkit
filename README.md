@@ -106,7 +106,7 @@ Only `GOOGLE_API_KEY` is required. All other variables are optional. An invalid 
 
 Retries use exponential backoff with jitter. Other 4xx responses are not retried.
 
-**Caching.** Results are cached in memory, per server process, so that repeat questions save API quota. A cached result has `cached: true` and `cachedAt`, and its `collectedAt` is when the data was actually fetched. Errors are never cached. The narrow tools and `performance_overview` share cache entries. Restarting the server clears the cache.
+**Caching.** Results are cached in memory, per server process, so that repeat questions save API quota. A cached result has `cached: true`, and its `cachedAt` and `collectedAt` are both the time Google's answer arrived. Errors are never cached. The narrow tools and `performance_overview` share cache entries. Restarting the server clears the cache.
 
 **URL validation.** Before calling Google, perfkit rejects unsafe or non-public targets as `invalid_input`, by syntax alone: only http and https are allowed, URLs are capped at 2048 characters, embedded credentials are refused, and so are loopback, private, link-local and cloud-metadata IP literals, `localhost`, `*.local`, `*.internal` and single-label hosts. Fragments are dropped. Sensitive query parameters (`token`, `key`, `auth`, `session`, `password` and similar) are redacted in all results and logs.
 

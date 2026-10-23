@@ -40,7 +40,10 @@ export const baseResultShape = {
   status: StatusSchema,
   collectedAt: z.string().describe('ISO 8601 time perfkit fetched this evidence from Google.'),
   cached: z.boolean(),
-  cachedAt: z.string().optional().describe('ISO 8601 time the cache entry was filled; present only when cached.'),
+  cachedAt: z
+    .string()
+    .optional()
+    .describe('ISO 8601 time Google’s answer for this cache entry arrived; present only when cached.'),
   warnings: z.array(z.string()),
   error: ErrorSchema.optional(),
 };
