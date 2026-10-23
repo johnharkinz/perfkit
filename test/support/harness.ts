@@ -22,11 +22,31 @@ export class CapturedStream extends Writable {
   }
 }
 
+export const TEST_START_TIME = '2026-10-23T12:00:00.000Z';
+
+/** A fixed clock that only moves when a test advances it. */
+export interface TestClock {
+  now(): Date;
+  advance(ms: number): void;
+}
+
+export function testClock(start = TEST_START_TIME): TestClock {
+  let t = new Date(start).getTime();
+  return {
+    now: () => new Date(t),
+    advance: (ms) => {
+      t += ms;
+    },
+  };
+}
+
 export interface Perfkit {
   client: Client;
   stderr: CapturedStream;
   /** Every backoff delay (ms) perfkit asked to wait; the harness returns at once instead of waiting. */
   sleeps: number[];
+  /** The server's clock: fixed at TEST_START_TIME until advanced. */
+  clock: TestClock;
   close(): Promise<void>;
 }
 
@@ -41,11 +61,12 @@ export interface ConnectOptions {
 export async function connectPerfkit(options: ConnectOptions): Promise<Perfkit> {
   const stderr = new CapturedStream();
   const sleeps: number[] = [];
+  const clock = testClock();
   const app = createApp({
     env: options.env ?? { GOOGLE_API_KEY: TEST_API_KEY },
     fetch: options.fetch,
     stderr,
-    now: () => new Date('2026-10-23T12:00:00.000Z'),
+    now: clock.now,
     sleep: async (ms) => {
       sleeps.push(ms);
     },
@@ -59,6 +80,7 @@ export async function connectPerfkit(options: ConnectOptions): Promise<Perfkit> 
     client,
     stderr,
     sleeps,
+    clock,
     async close() {
       await client.close();
       await server.close();

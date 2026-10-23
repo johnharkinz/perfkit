@@ -32,6 +32,17 @@ Then ask, for example: "Get current field data for https://developer.chrome.com/
 
 Retries use exponential backoff with jitter. Other 4xx responses are not retried.
 
+## Caching
+
+Results are cached in memory (per server process) so that repeat questions save API quota. A cached result has `cached: true` and `cachedAt`, and its `collectedAt` is when the data was actually fetched. Errors are never cached. You can override these optional environment variables (`0` disables caching for that kind):
+
+| Variable                                 | Default           | Applies to                    |
+| ---------------------------------------- | ----------------- | ----------------------------- |
+| `PERFKIT_CACHE_TTL_PAGESPEED_SECONDS`    | `1800` (30 min)   | Lab data (PSI)                |
+| `PERFKIT_CACHE_TTL_CRUX_CURRENT_SECONDS` | `43200` (12 h)    | Current field data, `no_data` |
+| `PERFKIT_CACHE_TTL_CRUX_HISTORY_SECONDS` | `604800` (7 days) | Field history                 |
+| `PERFKIT_CACHE_MAX_ENTRIES`              | `500`             | LRU bound on cached results   |
+
 ## Development
 
 | Command                                     | What it does                                                        |
