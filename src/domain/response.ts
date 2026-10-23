@@ -1,0 +1,114 @@
+/**
+ * The shared response format (schemaVersion 1.0.0).
+ *
+ * These Zod schemas are the contract every tool's structuredContent must
+ * match. They are transport-independent; the tool layer hands them to MCP as
+ * output schemas. Each tool's result is a single object (MCP requires an
+ * object output schema), so source-specific fields are optional and present
+ * only when status is "ok".
+ */
+import * as z from 'zod';
+import { ERROR_CODES, ERROR_SOURCES, type ErrorInfo } from './errors.js';
+import { METRIC_NAMES, type MetricName } from './metrics.js';
+
+export const SCHEMA_VERSION = '1.0.0';
+
+export const ProviderSchema = z.enum(['pagespeed', 'crux']);
+export const DataTypeSchema = z.enum(['lab', 'field_current', 'field_history']);
+export const ScopeSchema = z.enum(['url', 'origin']);
+export const StatusSchema = z.enum(['ok', 'no_data', 'error']);
+/** Every device perfkit can report on. Each tool's input narrows this. */
+export const DeviceSchema = z.enum(['PHONE', 'DESKTOP', 'TABLET', 'ALL']);
+export type Device = z.infer<typeof DeviceSchema>;
+export type Scope = z.infer<typeof ScopeSchema>;
+export type Status = z.infer<typeof StatusSchema>;
+
+export const ErrorSchema = z.object({
+  code: z.enum(ERROR_CODES),
+  source: z.enum(ERROR_SOURCES),
+  retryable: z.boolean(),
+  message: z.string(),
+});
+
+/** Fields every result carries, whatever its provider and status. */
+export const baseResultShape = {
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  requestedUrl: z.string().describe('The URL as requested, with sensitive parts redacted.'),
+  provider: ProviderSchema,
+  dataType: DataTypeSchema,
+  device: DeviceSchema,
+  status: StatusSchema,
+  collectedAt: z.string().describe('ISO 8601 time perfkit fetched this evidence from Google.'),
+  cached: z.boolean(),
+  cachedAt: z.string().optional().describe('ISO 8601 time the cache entry was filled; present only when cached.'),
+  warnings: z.array(z.string()),
+  error: ErrorSchema.optional(),
+};
+
+export const MetricNameSchema = z.enum(METRIC_NAMES);
+
+export const HistogramBinSchema = z.object({
+  start: z.number(),
+  end: z.number().nullable().describe('null for the open-ended last bin.'),
+  density: z.number().describe('Fraction of page loads in this bin (0–1).'),
+});
+
+export const FieldMetricSchema = z.object({
+  p75: z.number().nullable(),
+  unit: z.enum(['ms', 'unitless']),
+  rating: z.enum(['good', 'needs_improvement', 'poor']).nullable(),
+  histogram: z.array(HistogramBinSchema),
+  group: z.enum(['core_web_vital', 'supporting']),
+  provenance: z.object({
+    source: z.literal('crux'),
+    cruxMetric: z.string().describe('The CrUX metric name this value was read from.'),
+  }),
+});
+export type FieldMetric = z.infer<typeof FieldMetricSchema>;
+
+/** Metrics keyed by canonical name; a metric Google did not return is absent. */
+export const FieldMetricsSchema = z.object(
+  Object.fromEntries(METRIC_NAMES.map((name) => [name, FieldMetricSchema.optional()])) as Record<
+    MetricName,
+    z.ZodOptional<typeof FieldMetricSchema>
+  >,
+);
+export type FieldMetrics = z.infer<typeof FieldMetricsSchema>;
+
+export const CollectionPeriodSchema = z.object({
+  start: z.string().describe('First day of the 28-day window, YYYY-MM-DD (inclusive).'),
+  end: z.string().describe('Last day of the 28-day window, YYYY-MM-DD (inclusive).'),
+});
+
+export const FieldCurrentResultSchema = z.object({
+  ...baseResultShape,
+  provider: z.literal('crux'),
+  dataType: z.literal('field_current'),
+  scope: ScopeSchema,
+  collectionPeriod: CollectionPeriodSchema.optional(),
+  metrics: FieldMetricsSchema.optional(),
+});
+export type FieldCurrentResult = z.infer<typeof FieldCurrentResultSchema>;
+
+/** Context every result is built from, whatever its outcome. */
+export interface ResultContext {
+  requestedUrl: string;
+  device: Device;
+  collectedAt: string;
+}
+
+export function errorFieldCurrentResult(ctx: ResultContext & { scope: Scope }, error: ErrorInfo): FieldCurrentResult {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    requestedUrl: ctx.requestedUrl,
+    provider: 'crux',
+    dataType: 'field_current',
+    scope: ctx.scope,
+    device: ctx.device,
+    status: 'error',
+    collectedAt: ctx.collectedAt,
+    cached: false,
+    warnings: [],
+    error,
+  };
+}
