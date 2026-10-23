@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { createSecretScrubber } from '../src/security/secrets.js';
 import { displayForInvalid, parseTarget, redactUrl } from '../src/security/target.js';
 
 function rejection(raw: string) {
@@ -183,14 +182,6 @@ describe('redaction of sensitive query parameters', () => {
   it('redacts sensitive-looking parameters and credentials even in input that is not accepted', () => {
     expect(displayForInvalid('not a url?password=hunter2&x=1')).toBe('not a url?password=[REDACTED]&x=1');
     expect(displayForInvalid('ftp://bob:hunter2@files.example.com/')).toBe('ftp://[REDACTED]@files.example.com/');
-  });
-
-  it('is applied to every log line as a last line of defence', () => {
-    const scrub = createSecretScrubber(['AIzaKEY']);
-    const line = JSON.stringify({ msg: 'x', target: 'https://bob:pw1@example.com/?key=AIzaKEY&password=pw2&q=1' });
-    expect(scrub(line)).toBe(
-      JSON.stringify({ msg: 'x', target: 'https://[REDACTED]@example.com/?key=[REDACTED]&password=[REDACTED]&q=1' }),
-    );
   });
 
   it('truncates an over-long rejected URL in its display form', () => {

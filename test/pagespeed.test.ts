@@ -27,7 +27,7 @@ describe('performance_pagespeed', () => {
     expect((tool?.description ?? '').length).toBeLessThan(600);
   });
 
-  it('sends one PSI request with the mobile strategy and the performance category, keeping the key out of the URL', async () => {
+  it('sends one PSI request with the mobile strategy and the performance category, sending the key only in a header', async () => {
     const fetch = psiOk();
     perfkit = await connectPerfkit({ fetch });
 
@@ -46,6 +46,7 @@ describe('performance_pagespeed', () => {
     expect(call?.url.searchParams.get('strategy')).toBe('MOBILE');
     expect(call?.url.searchParams.getAll('category')).toEqual(['PERFORMANCE']);
     expect(call?.url.href).not.toContain(TEST_API_KEY);
+    expect(call?.headers.get('x-goog-api-key')).toBe(TEST_API_KEY);
   });
 
   it('maps DESKTOP to the desktop strategy and states it in the result', async () => {
