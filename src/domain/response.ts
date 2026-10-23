@@ -306,3 +306,43 @@ export function errorLabResult(ctx: ResultContext & { strategy: 'mobile' | 'desk
     error,
   };
 }
+
+/** ok: every section ok or no_data; error: every section failed; partial: anything in between. */
+export const OverviewStatusSchema = z.enum(['ok', 'partial', 'error']);
+export type OverviewStatus = z.infer<typeof OverviewStatusSchema>;
+
+const fieldScopeSections = (scope: Scope) =>
+  z
+    .object({
+      current: FieldCurrentResultSchema.describe(`Current field data for the ${scope}.`),
+      history: FieldHistoryResultSchema.optional().describe(
+        `Field history for the ${scope}; absent when includeHistory is false.`,
+      ),
+    })
+    .describe(scope === 'url' ? 'Field data for this exact URL.' : 'Field data for the whole origin of the URL.');
+
+export const OverviewResultSchema = z.object({
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  requestedUrl: z.string().describe('The URL as requested, with sensitive parts redacted.'),
+  device: z.enum(['PHONE', 'DESKTOP']),
+  status: OverviewStatusSchema.describe(
+    'ok: every section is ok or no_data. partial: some sections failed (see each section). error: all failed.',
+  ),
+  collectedAt: z.string().describe('ISO 8601 time this overview call started.'),
+  includeHistory: z.boolean(),
+  warnings: z.array(z.string()),
+  error: ErrorSchema.optional().describe('Present only when the input was rejected and no section was fetched.'),
+  lab: LabResultSchema.optional().describe('Lab data from one PageSpeed Insights run.'),
+  field: z
+    .object({ url: fieldScopeSections('url'), origin: fieldScopeSections('origin') })
+    .optional()
+    .describe('Field data from CrUX, URL and origin scopes kept separate. Never merged or substituted.'),
+});
+export type OverviewResult = z.infer<typeof OverviewResultSchema>;
+
+/** Derives the overview status from its sections' statuses (no_data counts as success). */
+export function overviewStatus(statuses: readonly Status[]): OverviewStatus {
+  const failed = statuses.filter((s) => s === 'error').length;
+  if (failed === 0) return 'ok';
+  return failed === statuses.length ? 'error' : 'partial';
+}

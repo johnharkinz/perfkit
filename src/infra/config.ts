@@ -1,9 +1,8 @@
 /**
  * Config: parses environment variables into a typed config.
  *
- * Only GOOGLE_API_KEY is required. Later options (cache lifetimes, overview
- * budget, PERFKIT_DNS_CHECK) are added to `Config` and parsed here, each with
- * a default. Error messages name variables and never echo their values.
+ * Only GOOGLE_API_KEY is required. Every other option (timeouts, retries,
+ * cache lifetimes, the overview budget, PERFKIT_DNS_CHECK) has a default. Error messages name variables and never echo their values.
  */
 import type { CacheConfig, CacheKind } from './cache.js';
 
@@ -23,7 +22,13 @@ export interface Config {
   readonly dnsCheck: boolean;
   readonly upstream: Readonly<Record<UpstreamSource, UpstreamPolicy>>;
   readonly cache: CacheConfig;
+  /** Overall time budget for one performance_overview call, in milliseconds. */
+  readonly overviewBudgetMs: number;
 }
+
+/** performance_overview's overall budget: past it, unfinished sections become upstream_timeout. */
+export const OVERVIEW_BUDGET_ENV = 'PERFKIT_OVERVIEW_BUDGET_MS';
+export const OVERVIEW_BUDGET_DEFAULT_MS = 75_000;
 
 /** Cache lifetime defaults (seconds) and their override variables. */
 export const CACHE_TTL_DEFAULTS: Readonly<Record<CacheKind, { env: string; seconds: number }>> = {
@@ -91,6 +96,7 @@ export function loadConfig(env: Env): Config {
     dnsCheck: parseFlag(env, 'PERFKIT_DNS_CHECK'),
     upstream: { pagespeed: upstreamPolicy(env, 'pagespeed'), crux: upstreamPolicy(env, 'crux') },
     cache: loadCacheConfig(env),
+    overviewBudgetMs: intVar(env, OVERVIEW_BUDGET_ENV, OVERVIEW_BUDGET_DEFAULT_MS, 1, MAX_TIMEOUT_MS),
   };
 }
 

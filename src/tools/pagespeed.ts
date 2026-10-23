@@ -6,8 +6,8 @@ import { normalizePagespeed } from '../domain/normalize-lab.js';
 import { errorLabResult, LAB_CATEGORIES, LabResultSchema, type LabResult } from '../domain/response.js';
 import { withCacheFields } from '../infra/cache.js';
 import type { PsiCategory, PsiStrategy } from '../providers/pagespeed.js';
-import { displayForInvalid } from '../security/target.js';
-import type { ToolDefinition } from './tool.js';
+import { displayForInvalid, type Target } from '../security/target.js';
+import type { ToolContext, ToolDefinition } from './tool.js';
 
 const InputSchema = z.object({
   url: z.string().describe('Public http(s) URL to test, e.g. "https://example.com/page".'),
@@ -49,24 +49,7 @@ export const pagespeedTool: ToolDefinition<typeof InputSchema, typeof LabResultS
     if (!parsed.ok) {
       return errorLabResult({ ...base, requestedUrl: displayForInvalid(args.url) }, parsed.error.toInfo());
     }
-    const { target } = parsed;
-    // Performance always runs, so ['seo'] and ['performance', 'seo'] are the same PSI request.
-    const categories = [...new Set<Input['categories'][number]>(['performance', ...args.categories])];
-    // The provider throws on every failure, so errors are never cached.
-    const lookup = await ctx.deps.cache.getOrLoad({
-      kind: 'pagespeed',
-      key: { provider: 'pagespeed', target: target.url, device: args.device, categories },
-      logger: ctx.logger,
-      load: () =>
-        ctx.deps.pagespeed.run({
-          url: target.url,
-          strategy: PSI_STRATEGY[args.device],
-          categories: categories.map((c) => PSI_CATEGORY[c]),
-          signal: ctx.signal,
-          logger: ctx.logger,
-        }),
-    });
-    return withCacheFields(normalizePagespeed(lookup.value, { ...base, target, categories: args.categories }), lookup);
+    return pagespeedFor(parsed.target, args, ctx);
   },
 
   errorResult(args, error, ctx) {
@@ -81,3 +64,32 @@ export const pagespeedTool: ToolDefinition<typeof InputSchema, typeof LabResultS
     );
   },
 };
+
+/**
+ * The core of performance_pagespeed for an already validated target, shared
+ * with performance_overview. Throws PerfkitError on every upstream failure.
+ */
+export async function pagespeedFor(
+  target: Target,
+  args: Pick<Input, 'device' | 'categories'>,
+  ctx: ToolContext,
+): Promise<LabResult> {
+  const base = { device: args.device, strategy: STRATEGY[args.device], collectedAt: ctx.startedAt.toISOString() };
+  // Performance always runs, so ['seo'] and ['performance', 'seo'] are the same PSI request.
+  const categories = [...new Set<Input['categories'][number]>(['performance', ...args.categories])];
+  // The provider throws on every failure, so errors are never cached.
+  const lookup = await ctx.deps.cache.getOrLoad({
+    kind: 'pagespeed',
+    key: { provider: 'pagespeed', target: target.url, device: args.device, categories },
+    logger: ctx.logger,
+    load: () =>
+      ctx.deps.pagespeed.run({
+        url: target.url,
+        strategy: PSI_STRATEGY[args.device],
+        categories: categories.map((c) => PSI_CATEGORY[c]),
+        signal: ctx.signal,
+        logger: ctx.logger,
+      }),
+  });
+  return withCacheFields(normalizePagespeed(lookup.value, { ...base, target, categories: args.categories }), lookup);
+}

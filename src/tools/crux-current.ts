@@ -12,8 +12,8 @@ import { CRUX_REQUEST_METRICS } from '../domain/metrics.js';
 import { noDataCruxCurrent, normalizeCruxCurrent } from '../domain/normalize-field.js';
 import { withCacheFields } from '../infra/cache.js';
 import { errorFieldCurrentResult, FieldCurrentResultSchema, type FieldCurrentResult } from '../domain/response.js';
-import { displayForInvalid, redactUrl } from '../security/target.js';
-import type { ToolDefinition } from './tool.js';
+import { displayForInvalid, redactUrl, type Target } from '../security/target.js';
+import type { ToolContext, ToolDefinition } from './tool.js';
 
 const InputSchema = z.object({
   url: z.string().describe('Public http(s) URL to look up, e.g. "https://example.com/page".'),
@@ -49,37 +49,7 @@ export const cruxCurrentTool: ToolDefinition<typeof InputSchema, typeof FieldCur
     if (!parsed.ok) {
       return errorFieldCurrentResult({ ...base, requestedUrl: displayForInvalid(args.url) }, parsed.error.toInfo());
     }
-    const { target } = parsed;
-    const request = {
-      ...base,
-      requestedUrl: target.display,
-      target: args.scope === 'origin' ? target.origin : target.url,
-      formFactor: args.device === 'ALL' ? undefined : args.device,
-      redact: redactUrl,
-    };
-    const lookup = await ctx.deps.cache.getOrLoad({
-      kind: 'cruxCurrent',
-      key: {
-        provider: 'crux',
-        target: request.target,
-        scope: request.scope,
-        device: args.device,
-        metrics: CRUX_REQUEST_METRICS,
-      },
-      logger: ctx.logger,
-      load: () =>
-        ctx.deps.crux.queryCurrent({
-          scope: request.scope,
-          target: request.target,
-          formFactor: request.formFactor,
-          signal: ctx.signal,
-          logger: ctx.logger,
-        }),
-    });
-    const outcome = lookup.value;
-    // Exactly one upstream call: no_data is reported as is, never retried at origin scope.
-    if (outcome.kind === 'no_data') return withCacheFields(noDataCruxCurrent(request), lookup);
-    return withCacheFields(normalizeCruxCurrent(outcome.record, request), lookup);
+    return cruxCurrentFor(parsed.target, args, ctx);
   },
 
   errorResult(args, error, ctx) {
@@ -94,3 +64,45 @@ export const cruxCurrentTool: ToolDefinition<typeof InputSchema, typeof FieldCur
     );
   },
 };
+
+/**
+ * The core of performance_crux_current for an already validated target, shared
+ * with performance_overview. Returns ok/no_data; throws PerfkitError on upstream failure.
+ */
+export async function cruxCurrentFor(
+  target: Target,
+  args: Pick<Input, 'scope' | 'device'>,
+  ctx: ToolContext,
+): Promise<FieldCurrentResult> {
+  const base = { device: args.device, collectedAt: ctx.startedAt.toISOString(), scope: args.scope };
+  const request = {
+    ...base,
+    requestedUrl: target.display,
+    target: args.scope === 'origin' ? target.origin : target.url,
+    formFactor: args.device === 'ALL' ? undefined : args.device,
+    redact: redactUrl,
+  };
+  const lookup = await ctx.deps.cache.getOrLoad({
+    kind: 'cruxCurrent',
+    key: {
+      provider: 'crux',
+      target: request.target,
+      scope: request.scope,
+      device: args.device,
+      metrics: CRUX_REQUEST_METRICS,
+    },
+    logger: ctx.logger,
+    load: () =>
+      ctx.deps.crux.queryCurrent({
+        scope: request.scope,
+        target: request.target,
+        formFactor: request.formFactor,
+        signal: ctx.signal,
+        logger: ctx.logger,
+      }),
+  });
+  const outcome = lookup.value;
+  // Exactly one upstream call: no_data is reported as is, never retried at origin scope.
+  if (outcome.kind === 'no_data') return withCacheFields(noDataCruxCurrent(request), lookup);
+  return withCacheFields(normalizeCruxCurrent(outcome.record, request), lookup);
+}

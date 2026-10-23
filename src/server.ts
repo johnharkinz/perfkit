@@ -8,6 +8,7 @@ import type { AppDeps } from './app.js';
 import { toErrorInfo } from './domain/errors.js';
 import { cruxCurrentTool } from './tools/crux-current.js';
 import { cruxHistoryTool } from './tools/crux-history.js';
+import { overviewTool } from './tools/overview.js';
 import { pagespeedTool } from './tools/pagespeed.js';
 import type { ToolContext, ToolDefinition } from './tools/tool.js';
 import { SERVER_NAME, SERVER_VERSION } from './version.js';
@@ -17,6 +18,7 @@ const TOOLS: readonly ToolDefinition[] = [
   cruxCurrentTool as unknown as ToolDefinition,
   cruxHistoryTool as unknown as ToolDefinition,
   pagespeedTool as unknown as ToolDefinition,
+  overviewTool as unknown as ToolDefinition,
 ];
 
 export function createServer(deps: AppDeps): McpServer {

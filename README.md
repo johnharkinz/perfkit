@@ -22,13 +22,14 @@ Then ask, for example: "Get current field data for https://developer.chrome.com/
 
 ## Configuration
 
-| Variable                  | Default  | Meaning                                                                 |
-| ------------------------- | -------- | ----------------------------------------------------------------------- |
-| `GOOGLE_API_KEY`          | required | Google API key; sent only in a request header, never logged or returned |
-| `PERFKIT_PSI_TIMEOUT_MS`  | `60000`  | Per-attempt timeout for PageSpeed Insights                              |
-| `PERFKIT_PSI_RETRIES`     | `1`      | Retries for PageSpeed Insights on 429, 5xx and timeouts                 |
-| `PERFKIT_CRUX_TIMEOUT_MS` | `10000`  | Per-attempt timeout for the CrUX API                                    |
-| `PERFKIT_CRUX_RETRIES`    | `3`      | Retries for the CrUX API on 429, 5xx and timeouts                       |
+| Variable                     | Default  | Meaning                                                                                                          |
+| ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `GOOGLE_API_KEY`             | required | Google API key; sent only in a request header, never logged or returned                                          |
+| `PERFKIT_PSI_TIMEOUT_MS`     | `60000`  | Per-attempt timeout for PageSpeed Insights                                                                       |
+| `PERFKIT_PSI_RETRIES`        | `1`      | Retries for PageSpeed Insights on 429, 5xx and timeouts                                                          |
+| `PERFKIT_CRUX_TIMEOUT_MS`    | `10000`  | Per-attempt timeout for the CrUX API                                                                             |
+| `PERFKIT_CRUX_RETRIES`       | `3`      | Retries for the CrUX API on 429, 5xx and timeouts                                                                |
+| `PERFKIT_OVERVIEW_BUDGET_MS` | `75000`  | Overall time budget for one `performance_overview` call; a section still running then becomes `upstream_timeout` |
 
 Retries use exponential backoff with jitter. Other 4xx responses are not retried.
 

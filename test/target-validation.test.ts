@@ -20,9 +20,9 @@ const okFetch = () =>
     ),
   }));
 
-/** What was sent upstream: the CrUX JSON body, or PSI's `url` query parameter. */
-const sentUpstream = (call: { body: unknown; url: URL } | undefined) =>
-  JSON.stringify(call?.body ?? null) + (call?.url.searchParams.get('url') ?? '');
+/** What was sent upstream in every call: CrUX JSON bodies and PSI's `url` query parameter. */
+const sentUpstream = (calls: { body: unknown; url: URL }[]) =>
+  calls.map((call) => JSON.stringify(call.body ?? null) + (call.url.searchParams.get('url') ?? '')).join('\n');
 
 /** Every tool that takes a URL, with extra arguments per variant. Later tools are added here as they land. */
 const URL_TOOLS: { tool: string; extra: Record<string, unknown> }[] = [
@@ -31,6 +31,8 @@ const URL_TOOLS: { tool: string; extra: Record<string, unknown> }[] = [
   { tool: 'performance_crux_history', extra: { scope: 'url' } },
   { tool: 'performance_crux_history', extra: { scope: 'origin' } },
   { tool: 'performance_pagespeed', extra: {} },
+  { tool: 'performance_overview', extra: {} },
+  { tool: 'performance_overview', extra: { includeHistory: false } },
 ];
 
 describe.each(URL_TOOLS)('$tool $extra target validation', ({ tool, extra }) => {
@@ -77,8 +79,9 @@ describe.each(URL_TOOLS)('$tool $extra target validation', ({ tool, extra }) => 
     const output = JSON.stringify(res) + perfkit.stderr.text;
     expect(output).not.toContain('tok-123');
     expect(output).not.toContain('ses-456');
-    if (extra.scope !== 'origin') expect(sentUpstream(fetch.calls[0])).toContain('token=tok-123');
-    expect(sentUpstream(fetch.calls[0])).not.toContain('#top');
+    expect(fetch.calls.length).toBeGreaterThan(0);
+    if (extra.scope !== 'origin') expect(sentUpstream(fetch.calls)).toContain('token=tok-123');
+    expect(sentUpstream(fetch.calls)).not.toContain('#top');
   });
 
   it('redacts credentials and sensitive parameters in requestedUrl of a rejected URL', async () => {

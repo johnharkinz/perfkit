@@ -12,8 +12,8 @@ import { CRUX_REQUEST_METRICS } from '../domain/metrics.js';
 import { noDataCruxHistory, normalizeCruxHistory } from '../domain/normalize-field.js';
 import { errorFieldHistoryResult, FieldHistoryResultSchema, type FieldHistoryResult } from '../domain/response.js';
 import { withCacheFields } from '../infra/cache.js';
-import { displayForInvalid, redactUrl } from '../security/target.js';
-import type { ToolDefinition } from './tool.js';
+import { displayForInvalid, redactUrl, type Target } from '../security/target.js';
+import type { ToolContext, ToolDefinition } from './tool.js';
 
 export const MAX_HISTORY_PERIODS = 40;
 
@@ -73,40 +73,7 @@ export const cruxHistoryTool: ToolDefinition<typeof InputSchema, typeof FieldHis
     if (!parsed.ok) {
       return errorFieldHistoryResult({ ...base, requestedUrl: displayForInvalid(args.url) }, parsed.error.toInfo());
     }
-    const { target } = parsed;
-    const request = {
-      ...base,
-      requestedUrl: target.display,
-      target: args.scope === 'origin' ? target.origin : target.url,
-      formFactor: args.device === 'ALL' ? undefined : args.device,
-      redact: redactUrl,
-    };
-    const lookup = await ctx.deps.cache.getOrLoad({
-      kind: 'cruxHistory',
-      key: {
-        provider: 'crux',
-        target: request.target,
-        scope: request.scope,
-        device: args.device,
-        metrics: CRUX_REQUEST_METRICS,
-        periods: args.periods,
-      },
-      // no_data uses the current-field-data lifetime: coverage can appear sooner than a week.
-      lifetime: (outcome) => (outcome.kind === 'no_data' ? 'cruxCurrent' : 'cruxHistory'),
-      logger: ctx.logger,
-      load: () =>
-        ctx.deps.crux.queryHistory({
-          scope: request.scope,
-          target: request.target,
-          formFactor: request.formFactor,
-          periods: args.periods,
-          signal: ctx.signal,
-          logger: ctx.logger,
-        }),
-    });
-    const outcome = lookup.value;
-    if (outcome.kind === 'no_data') return withCacheFields(noDataCruxHistory(request), lookup);
-    return withCacheFields(normalizeCruxHistory(outcome.record, request), lookup);
+    return cruxHistoryFor(parsed.target, args, ctx);
   },
 
   errorResult(args: Input, error, ctx) {
@@ -122,3 +89,54 @@ export const cruxHistoryTool: ToolDefinition<typeof InputSchema, typeof FieldHis
     );
   },
 };
+
+/**
+ * The core of performance_crux_history for an already validated target and
+ * checked `periods`, shared with performance_overview. Returns ok/no_data;
+ * throws PerfkitError on upstream failure.
+ */
+export async function cruxHistoryFor(
+  target: Target,
+  args: Pick<Input, 'scope' | 'device' | 'periods'>,
+  ctx: ToolContext,
+): Promise<FieldHistoryResult> {
+  const base = {
+    device: args.device,
+    collectedAt: ctx.startedAt.toISOString(),
+    scope: args.scope,
+    periods: args.periods,
+  };
+  const request = {
+    ...base,
+    requestedUrl: target.display,
+    target: args.scope === 'origin' ? target.origin : target.url,
+    formFactor: args.device === 'ALL' ? undefined : args.device,
+    redact: redactUrl,
+  };
+  const lookup = await ctx.deps.cache.getOrLoad({
+    kind: 'cruxHistory',
+    key: {
+      provider: 'crux',
+      target: request.target,
+      scope: request.scope,
+      device: args.device,
+      metrics: CRUX_REQUEST_METRICS,
+      periods: args.periods,
+    },
+    // no_data uses the current-field-data lifetime: coverage can appear sooner than a week.
+    lifetime: (outcome) => (outcome.kind === 'no_data' ? 'cruxCurrent' : 'cruxHistory'),
+    logger: ctx.logger,
+    load: () =>
+      ctx.deps.crux.queryHistory({
+        scope: request.scope,
+        target: request.target,
+        formFactor: request.formFactor,
+        periods: args.periods,
+        signal: ctx.signal,
+        logger: ctx.logger,
+      }),
+  });
+  const outcome = lookup.value;
+  if (outcome.kind === 'no_data') return withCacheFields(noDataCruxHistory(request), lookup);
+  return withCacheFields(normalizeCruxHistory(outcome.record, request), lookup);
+}
