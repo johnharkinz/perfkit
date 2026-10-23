@@ -194,3 +194,36 @@ describe('PERFKIT_DNS_CHECK', () => {
     await expect(connectPerfkit({ fetch: okFetch(), env: env('yes') })).rejects.toThrow(/PERFKIT_DNS_CHECK/);
   });
 });
+
+describe('log scrubbing', () => {
+  it('scrubs credentials, sensitive parameters and the API key from every log line, even an unexpected error', async () => {
+    // A faulty resolver whose error name carries secrets: the name is logged for internal errors.
+    const fault = new Error('resolver broke');
+    fault.name = `https://bob:pw-111@example.com/k/${TEST_API_KEY}?key=${TEST_API_KEY}&password=pw-222&q=1`;
+    const addresses = Object.assign(['93.184.215.14'], {
+      every: () => {
+        throw fault;
+      },
+    });
+    perfkit = await connectPerfkit({
+      fetch: okFetch(),
+      env: { GOOGLE_API_KEY: TEST_API_KEY, PERFKIT_DNS_CHECK: '1' },
+      lookup: async () => addresses,
+    });
+
+    const res = await perfkit.client.callTool({
+      name: 'performance_crux_current',
+      arguments: { url: 'https://developer.chrome.com/' },
+    });
+
+    expect(res.structuredContent).toMatchObject({ error: { code: 'internal_error', source: 'perfkit' } });
+    expect(perfkit.stderr.jsonLines()).toContainEqual(
+      expect.objectContaining({
+        msg: 'tool call failed',
+        errorName: 'https://[REDACTED]@example.com/k/[REDACTED]?key=[REDACTED]&password=[REDACTED]&q=1',
+      }),
+    );
+    const output = JSON.stringify(res) + perfkit.stderr.text;
+    for (const secret of ['pw-111', 'pw-222', TEST_API_KEY]) expect(output).not.toContain(secret);
+  });
+});

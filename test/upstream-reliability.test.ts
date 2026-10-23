@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { connectPerfkit, TEST_API_KEY, type Perfkit } from './support/harness.js';
 import { fakeFetch, fixture, type FakeReply } from './support/fake-google.js';
 
@@ -144,6 +144,107 @@ describe('upstream timeouts', () => {
 
     expect(res.structuredContent).toMatchObject({ status: 'ok' });
     expect(fetch.calls).toHaveLength(2);
+  });
+});
+
+describe('PageSpeed Insights policy', () => {
+  const callPagespeed = (p: Perfkit) =>
+    p.client.callTool({ name: 'performance_pagespeed', arguments: { url: 'https://developer.chrome.com/' } });
+
+  it('retries a PSI 5xx once by default, then reports upstream_error, retryable', async () => {
+    const fetch = script(() => googleError(503, 'UNAVAILABLE'));
+    perfkit = await connectPerfkit({ fetch });
+
+    const res = await callPagespeed(perfkit);
+
+    expect(res.structuredContent).toMatchObject({
+      status: 'error',
+      error: { code: 'upstream_error', source: 'pagespeed', retryable: true },
+    });
+    expect(fetch.calls).toHaveLength(2);
+    expect(perfkit.sleeps).toHaveLength(1);
+  });
+
+  it('takes the PSI retry limit and timeout from PERFKIT_PSI_RETRIES and PERFKIT_PSI_TIMEOUT_MS', async () => {
+    const fetch = fakeFetch(() => new Promise<FakeReply>(() => {}));
+    perfkit = await connectPerfkit({
+      fetch,
+      env: { GOOGLE_API_KEY: TEST_API_KEY, PERFKIT_PSI_RETRIES: '2', PERFKIT_PSI_TIMEOUT_MS: '5' },
+    });
+
+    const res = await callPagespeed(perfkit);
+
+    expect(res.structuredContent).toMatchObject({
+      status: 'error',
+      error: { code: 'upstream_timeout', source: 'pagespeed', retryable: true },
+    });
+    expect(fetch.calls).toHaveLength(3);
+    expect(perfkit.stderr.jsonLines()).toContainEqual(
+      expect.objectContaining({ msg: 'upstream timeout', endpoint: 'pagespeed', timeoutMs: 5 }),
+    );
+  });
+});
+
+describe('client cancellation', () => {
+  it.each(['performance_pagespeed', 'performance_crux_current'])(
+    '%s stops at once when the client cancels, and does not report it as an upstream timeout',
+    async (name) => {
+      const fetch = fakeFetch(() => new Promise<FakeReply>(() => {}));
+      perfkit = await connectPerfkit({ fetch });
+      const cancel = new AbortController();
+
+      const pending = perfkit.client.callTool(
+        { name, arguments: { url: 'https://developer.chrome.com/' } },
+        { signal: cancel.signal },
+      );
+      await vi.waitFor(() => expect(fetch.calls).toHaveLength(1));
+      cancel.abort('user pressed stop');
+
+      await expect(pending).rejects.toThrow();
+      const failed = await vi.waitFor(() => {
+        const line = perfkit?.stderr.jsonLines().find((l) => l['msg'] === 'tool call failed');
+        expect(line).toBeDefined();
+        return line;
+      });
+      expect(failed).toMatchObject({ code: 'internal_error', source: 'perfkit' });
+      expect(perfkit.stderr.jsonLines()).toContainEqual(
+        expect.objectContaining({ msg: 'upstream request cancelled', attempt: 1 }),
+      );
+      expect(perfkit.stderr.jsonLines()).not.toContainEqual(expect.objectContaining({ code: 'upstream_timeout' }));
+      expect(fetch.calls).toHaveLength(1);
+    },
+  );
+});
+
+describe('default timeouts', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([
+    ['performance_pagespeed', 60_000, 2],
+    ['performance_crux_current', 10_000, 4],
+  ])('%s gives each attempt %i ms before retrying, %i attempts in all', async (name, timeoutMs, attempts) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const fetch = fakeFetch(() => new Promise<FakeReply>(() => {}));
+    perfkit = await connectPerfkit({ fetch });
+
+    const pending = perfkit.client.callTool(
+      { name, arguments: { url: 'https://developer.chrome.com/' } },
+      { timeout: 10 * timeoutMs * attempts },
+    );
+    // (vi.waitFor would advance the fake clock itself, so only exact advances are used.)
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch.calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(timeoutMs - 1);
+    expect(fetch.calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetch.calls).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(timeoutMs * attempts);
+    const res = await pending;
+
+    expect(fetch.calls).toHaveLength(attempts);
+    expect(res.structuredContent).toMatchObject({ error: { code: 'upstream_timeout', retryable: true } });
   });
 });
 

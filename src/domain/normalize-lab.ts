@@ -11,13 +11,15 @@ import {
   type LabMetricName,
   type LabMetrics,
   type LabResult,
+  type LabStrategy,
   type ResultContext,
 } from './response.js';
 import { parseTarget, redactUrl, type Target } from '../security/target.js';
 
-export interface LabContext extends Omit<ResultContext, 'requestedUrl'> {
+export interface LabContext extends ResultContext {
+  /** The validated target, compared with the URL PSI finally tested. */
   target: Target;
-  strategy: 'mobile' | 'desktop';
+  strategy: LabStrategy;
   categories: readonly LabCategory[];
 }
 
@@ -83,7 +85,8 @@ function categoryScores(
   return Object.fromEntries(extra.map((c) => [c, toScore100(categories[c]?.score)]));
 }
 
-function comparable(url: string): string {
+/** `url` as parseTarget normalises a requested URL (fragment dropped, etc.), so it compares with `target.url`. */
+function normalizedLikeTarget(url: string): string {
   const parsed = parseTarget(url);
   return parsed.ok ? parsed.target.url : url;
 }
@@ -94,7 +97,7 @@ export function normalizePagespeed(record: PagespeedRecord, ctx: LabContext): La
   const shownFinal = lh.finalDisplayedUrl ?? lh.mainDocumentUrl ?? lh.finalUrl;
   const testedFinal = lh.mainDocumentUrl ?? shownFinal;
   const finalUrl = shownFinal === undefined ? undefined : redactUrl(shownFinal);
-  if (testedFinal !== undefined && comparable(testedFinal) !== ctx.target.url) {
+  if (testedFinal !== undefined && normalizedLikeTarget(testedFinal) !== ctx.target.url) {
     warnings.push(
       `PageSpeed Insights tested ${redactUrl(testedFinal)}, not the requested ${ctx.target.display} ` +
         '(redirect); this lab data describes the final URL.',
@@ -103,7 +106,7 @@ export function normalizePagespeed(record: PagespeedRecord, ctx: LabContext): La
   const scores = categoryScores(lh.categories, ctx.categories);
   return {
     schemaVersion: SCHEMA_VERSION,
-    requestedUrl: ctx.target.display,
+    requestedUrl: ctx.requestedUrl,
     provider: 'pagespeed',
     dataType: 'lab',
     device: ctx.device,
@@ -123,7 +126,6 @@ export function normalizePagespeed(record: PagespeedRecord, ctx: LabContext): La
         fetchTime: lh.fetchTime,
         analysisUTCTimestamp: record.analysisUTCTimestamp,
         formFactor: lh.configSettings?.formFactor,
-        throttlingMethod: lh.throttlingMethod,
         locale: lh.configSettings?.locale,
         userAgent: lh.userAgent,
         networkUserAgent: lh.environment?.networkUserAgent,

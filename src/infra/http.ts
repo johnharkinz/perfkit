@@ -14,6 +14,10 @@
  * Callers receive the final HTTP response (`{status, body}`) and classify
  * non-2xx statuses with `upstreamErrorFromStatus`. Timeouts, cancellation and
  * network failures that outlast the retries are thrown as `PerfkitError`.
+ * A caller's deadline (an `AbortSignal.timeout`, such as the overview budget)
+ * is reported as `upstream_timeout`; any other abort (the MCP client
+ * cancelling) is a cancellation, not a timeout, so it is `internal_error`
+ * from perfkit with a message saying the call was cancelled.
  */
 import { PerfkitError, type ErrorSource } from '../domain/errors.js';
 import type { UpstreamPolicy, UpstreamSource } from './config.js';
@@ -37,9 +41,10 @@ export interface HttpRequest {
   /** JSON request body (POST). */
   body?: unknown;
   /**
-   * Cancellation from the caller (the MCP client cancelling, or an overall
-   * budget such as the overview's). Aborting stops retries and throws
-   * `upstream_timeout`.
+   * Cancellation from the caller: the MCP client cancelling, or an overall
+   * deadline such as the overview's budget (`AbortSignal.timeout`). Aborting
+   * stops retries at once; a deadline throws `upstream_timeout`, any other
+   * abort throws a retryable `internal_error` saying the call was cancelled.
    */
   signal?: AbortSignal;
   logger: Logger;
@@ -145,11 +150,17 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
+/** True when `signal` was aborted by a deadline (`AbortSignal.timeout`) rather than cancelled. */
+function isDeadline(signal: AbortSignal): boolean {
+  const reason: unknown = signal.reason;
+  return reason instanceof DOMException && reason.name === 'TimeoutError';
+}
+
 type Attempt =
   | { kind: 'response'; response: HttpResponse; googleStatus?: string }
   | { kind: 'timeout' }
   | { kind: 'network' }
-  | { kind: 'cancelled' };
+  | { kind: 'cancelled'; signal: AbortSignal };
 
 export function createHttpClient(options: HttpClientOptions): HttpClient {
   const now = options.now ?? (() => performance.now());
@@ -187,7 +198,7 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
         ...(status ? { googleStatus: status } : {}),
       };
     } catch {
-      if (req.signal?.aborted) return { kind: 'cancelled' };
+      if (req.signal?.aborted) return { kind: 'cancelled', signal: req.signal };
       if (timeout.signal.aborted) return { kind: 'timeout' };
       return { kind: 'network' };
     } finally {
@@ -207,6 +218,22 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
           retryable: true,
           message: `${LABEL[source]} did not respond in time.`,
         });
+      /** The caller stopped waiting: past its deadline that is a timeout, otherwise a cancellation. */
+      const stopped = (signal: AbortSignal, attemptNo: number, latencyMs?: number): PerfkitError => {
+        const deadline = isDeadline(signal);
+        log.warn('upstream request cancelled', {
+          attempt: attemptNo,
+          ...(latencyMs === undefined ? {} : { latencyMs }),
+          reason: deadline ? 'deadline' : 'cancelled',
+        });
+        if (deadline) return timedOut();
+        return new PerfkitError({
+          code: 'internal_error',
+          source: 'perfkit',
+          retryable: true,
+          message: `The call was cancelled before ${LABEL[source]} answered.`,
+        });
+      };
 
       for (let n = 0; ; n++) {
         const attemptNo = n + 1;
@@ -216,8 +243,7 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
 
         let reason: string;
         if (result.kind === 'cancelled') {
-          log.warn('upstream request cancelled', { attempt: attemptNo, latencyMs });
-          throw timedOut();
+          throw stopped(result.signal, attemptNo, latencyMs);
         } else if (result.kind === 'response') {
           const { status } = result.response;
           const fields = {
@@ -259,9 +285,9 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
         log.info('upstream retry scheduled', { attempt: attemptNo, reason, delayMs });
         try {
           await sleep(delayMs, req.signal);
-        } catch {
-          log.warn('upstream request cancelled', { attempt: attemptNo });
-          throw timedOut();
+        } catch (err) {
+          if (req.signal?.aborted) throw stopped(req.signal, attemptNo);
+          throw err;
         }
       }
     },

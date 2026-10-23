@@ -97,19 +97,28 @@ function returnedCruxKey(
 }
 
 /**
+ * The no_data warnings: what is missing for which key and why, plus, for URL
+ * scope, a hint that origin data may exist as a separate request.
+ */
+function noDataWarnings(ctx: CruxRequestContext, missing: string, originData: string, reason: string): string[] {
+  const what = ctx.scope === 'url' ? 'this URL' : 'this origin';
+  const device = ctx.device === 'ALL' ? 'all devices' : `device ${ctx.device}`;
+  const warnings = [`CrUX has no ${missing} for ${what} on ${device} (${reason}).`];
+  if (ctx.scope === 'url') {
+    warnings.push(
+      `Origin-level ${originData} may exist: request it separately with scope "origin". It describes the whole site, not this URL.`,
+    );
+  }
+  return warnings;
+}
+
+/**
  * CrUX publishes no field data for this key: a valid finding, not an error.
  * For URL scope it hints that origin data exists as a separate request; it
  * never fetches it (origin data must never stand in for URL data).
  */
 export function noDataCruxCurrent(ctx: CruxRequestContext): FieldCurrentResult {
-  const what = ctx.scope === 'url' ? 'this URL' : 'this origin';
-  const device = ctx.device === 'ALL' ? 'all devices' : `device ${ctx.device}`;
-  const warnings = [`CrUX has no current field data for ${what} on ${device} (too little traffic in the window).`];
-  if (ctx.scope === 'url') {
-    warnings.push(
-      'Origin-level field data may exist: request it separately with scope "origin". It describes the whole site, not this URL.',
-    );
-  }
+  const warnings = noDataWarnings(ctx, 'current field data', 'field data', 'too little traffic in the window');
   return {
     schemaVersion: SCHEMA_VERSION,
     requestedUrl: ctx.requestedUrl,
@@ -167,7 +176,8 @@ export interface CruxHistoryRequestContext extends CruxRequestContext {
   periods: number;
 }
 
-function historyBase(ctx: CruxHistoryRequestContext) {
+/** The fields every history result shares, whatever its status. */
+function historyEnvelope(ctx: CruxHistoryRequestContext) {
   return {
     schemaVersion: SCHEMA_VERSION,
     requestedUrl: ctx.requestedUrl,
@@ -184,16 +194,9 @@ function historyBase(ctx: CruxHistoryRequestContext) {
 
 /** CrUX publishes no field history for this key: a valid finding. Like current, it never falls back to origin. */
 export function noDataCruxHistory(ctx: CruxHistoryRequestContext): FieldHistoryResult {
-  const what = ctx.scope === 'url' ? 'this URL' : 'this origin';
-  const device = ctx.device === 'ALL' ? 'all devices' : `device ${ctx.device}`;
-  const warnings = [`CrUX has no field history for ${what} on ${device} (too little traffic).`];
-  if (ctx.scope === 'url') {
-    warnings.push(
-      'Origin-level field history may exist: request it separately with scope "origin". It describes the whole site, not this URL.',
-    );
-  }
+  const warnings = noDataWarnings(ctx, 'field history', 'field history', 'too little traffic');
   return {
-    ...historyBase(ctx),
+    ...historyEnvelope(ctx),
     status: 'no_data',
     warnings: [HISTORY_OVERLAP_WARNING, ...warnings],
     metrics: {},
@@ -228,7 +231,7 @@ export function normalizeCruxHistory(record: CruxHistoryRecord, ctx: CruxHistory
   }
   const returned = returnedCruxKey(record, ctx);
   return {
-    ...historyBase(ctx),
+    ...historyEnvelope(ctx),
     status: 'ok',
     warnings: [HISTORY_OVERLAP_WARNING, ...returned.warnings],
     returnedKey: returned.key,

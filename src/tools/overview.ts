@@ -13,7 +13,6 @@ import { toErrorInfo, type ErrorInfo } from '../domain/errors.js';
 import {
   errorFieldCurrentResult,
   errorFieldHistoryResult,
-  errorLabResult,
   OverviewResultSchema,
   overviewStatus,
   SCHEMA_VERSION,
@@ -21,11 +20,10 @@ import {
   type Scope,
   type Status,
 } from '../domain/response.js';
-import { displayForInvalid } from '../security/target.js';
 import { cruxCurrentFor } from './crux-current.js';
 import { cruxHistoryFor, MAX_HISTORY_PERIODS } from './crux-history.js';
-import { pagespeedFor } from './pagespeed.js';
-import type { ToolContext, ToolDefinition } from './tool.js';
+import { errorLabResultFor, pagespeedFor } from './pagespeed.js';
+import { inputResultContext, targetResultContext, type ToolContext, type ToolDefinition } from './tool.js';
 
 const InputSchema = z.object({
   url: z.string().describe('Public http(s) URL to report on, e.g. "https://example.com/page".'),
@@ -40,7 +38,20 @@ const InputSchema = z.object({
 });
 type Input = z.infer<typeof InputSchema>;
 
-const STRATEGY = { PHONE: 'mobile', DESKTOP: 'desktop' } as const;
+/** The overview envelope when nothing could be fetched at all (e.g. invalid input). */
+function rejected(args: Input, error: ErrorInfo, ctx: ToolContext): OverviewResult {
+  const { requestedUrl, collectedAt } = inputResultContext(args, ctx);
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    requestedUrl,
+    device: args.device,
+    status: 'error',
+    collectedAt,
+    includeHistory: args.includeHistory,
+    warnings: [],
+    error,
+  };
+}
 
 export const overviewTool: ToolDefinition<typeof InputSchema, typeof OverviewResultSchema> = {
   name: 'performance_overview',
@@ -48,11 +59,10 @@ export const overviewTool: ToolDefinition<typeof InputSchema, typeof OverviewRes
   description:
     'All the evidence for a URL in one call: lab data from one PageSpeed Insights run (section "lab"), and ' +
     'Chrome UX Report field data for the exact URL and for its whole origin, current and (unless includeHistory ' +
-    'is false) up to 40 weeks of history (sections field.url.current, field.url.history, field.origin.current, ' +
-    'field.origin.history). Lab and field data, and URL and origin scopes, are kept separate; nothing is merged ' +
-    'or substituted. Each section has its own status: "no_data" is a valid finding, not a failure. The overall ' +
-    'status is "ok" when no section failed, "partial" when some failed, "error" when all failed. If PageSpeed ' +
-    'Insights is too slow, the lab section times out and field data is still returned.',
+    'is false) up to 40 weeks of history (field.url.* and field.origin.*). Lab and field data, URL and origin, ' +
+    'are kept separate; nothing is merged or substituted. Each section has its own status; "no_data" is a valid ' +
+    'finding. Overall status: "ok" if no section failed, "partial" if some did, "error" if all did. If PSI is ' +
+    'too slow, the lab section times out and field data is still returned.',
   inputSchema: InputSchema,
   outputSchema: OverviewResultSchema,
 
@@ -64,11 +74,11 @@ export const overviewTool: ToolDefinition<typeof InputSchema, typeof OverviewRes
     const budgetMs = ctx.deps.config.overviewBudgetMs;
     const budget = AbortSignal.timeout(budgetMs);
     const sectionCtx: ToolContext = { ...ctx, signal: ctx.signal ? AbortSignal.any([ctx.signal, budget]) : budget };
-    const collectedAt = ctx.startedAt.toISOString();
     const device = args.device;
-    const requestedUrl = target.display;
+    const result = targetResultContext(target, device, ctx);
 
-    const section = async <T extends { status: Status }>(
+    /** Runs one section; a thrown error becomes that section's own error result. */
+    const runSection = async <T extends { status: Status }>(
       name: string,
       load: () => Promise<T>,
       onError: (error: ErrorInfo) => T,
@@ -82,29 +92,25 @@ export const overviewTool: ToolDefinition<typeof InputSchema, typeof OverviewRes
       }
     };
     const current = (scope: Scope) =>
-      section(
+      runSection(
         `field.${scope}.current`,
         () => cruxCurrentFor(target, { scope, device }, sectionCtx),
-        (error) => errorFieldCurrentResult({ requestedUrl, device, collectedAt, scope }, error),
+        (error) => errorFieldCurrentResult({ ...result, scope }, error),
       );
     const history = (scope: Scope) =>
       args.includeHistory
-        ? section(
+        ? runSection(
             `field.${scope}.history`,
             () => cruxHistoryFor(target, { scope, device, periods: MAX_HISTORY_PERIODS }, sectionCtx),
-            (error) =>
-              errorFieldHistoryResult(
-                { requestedUrl, device, collectedAt, scope, periods: MAX_HISTORY_PERIODS },
-                error,
-              ),
+            (error) => errorFieldHistoryResult({ ...result, scope, periods: MAX_HISTORY_PERIODS }, error),
           )
         : Promise.resolve(undefined);
 
     const [lab, urlCurrent, originCurrent, urlHistory, originHistory] = await Promise.all([
-      section(
+      runSection(
         'lab',
         () => pagespeedFor(target, { device, categories: ['performance'] }, sectionCtx),
-        (error) => errorLabResult({ requestedUrl, device, strategy: STRATEGY[device], collectedAt }, error),
+        (error) => errorLabResultFor({ ...result, device }, error),
       ),
       current('url'),
       current('origin'),
@@ -115,10 +121,10 @@ export const overviewTool: ToolDefinition<typeof InputSchema, typeof OverviewRes
     const sections = [lab, urlCurrent, originCurrent, urlHistory, originHistory].filter((s) => s !== undefined);
     return {
       schemaVersion: SCHEMA_VERSION,
-      requestedUrl,
+      requestedUrl: result.requestedUrl,
       device,
       status: overviewStatus(sections.map((s) => s.status)),
-      collectedAt,
+      collectedAt: result.collectedAt,
       includeHistory: args.includeHistory,
       warnings: [],
       lab,
@@ -129,24 +135,8 @@ export const overviewTool: ToolDefinition<typeof InputSchema, typeof OverviewRes
     };
   },
 
-  errorResult(args, error, ctx) {
-    return rejected(args, error, ctx);
-  },
+  errorResult: rejected,
 };
-
-/** The overview envelope when nothing could be fetched at all (e.g. invalid input). */
-function rejected(args: Input, error: ErrorInfo, ctx: ToolContext): OverviewResult {
-  return {
-    schemaVersion: SCHEMA_VERSION,
-    requestedUrl: displayForInvalid(args.url),
-    device: args.device,
-    status: 'error',
-    collectedAt: ctx.startedAt.toISOString(),
-    includeHistory: args.includeHistory,
-    warnings: [],
-    error,
-  };
-}
 
 /** A timeout caused by the overview budget says so, and points to the narrow tool, which has no budget. */
 function withBudgetMessage(info: ErrorInfo, budgetExpired: boolean, budgetMs: number): ErrorInfo {

@@ -106,7 +106,7 @@ Abridged result (illustrative values):
 Things to note:
 
 - `performanceScore` is Lighthouse's 0–100 score for one simulated run. Lab metrics have Lighthouse's own 0–1 `score` but no `rating`, and TBT is not INP.
-- `savings` appears only when Lighthouse supplied an estimate. The LCP breakdown and layout-shift culprits audits are always included, even when they pass.
+- `savings` appears only when Lighthouse supplied an estimate above zero: zero estimates (PSI sends many, such as `{"LCP": 0}`) are dropped. The LCP breakdown and layout-shift culprits audits are always included, even when they pass.
 - If PSI tested a different URL (a redirect), `finalUrl` shows it and `warnings` says so.
 - With `"categories": ["performance", "accessibility", "seo"]`, the result also has `"categoryScores": { "accessibility": 95, "seo": 100 }`.
 

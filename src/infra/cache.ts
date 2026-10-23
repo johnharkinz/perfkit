@@ -36,7 +36,7 @@ export interface CacheConfig {
 
 export interface Cached<T> {
   value: T;
-  /** When the entry was filled; present only on a cache hit. */
+  /** When the cached provider answer arrived; present only on a cache hit. */
   cachedAt?: Date;
 }
 
@@ -96,9 +96,9 @@ export function createProviderCache(config: CacheConfig, now: () => Date): Provi
       if (hit) entries.delete(id);
       logger.info('cache miss', { ...logFields, expired: hit !== undefined });
 
-      // Stamp the fill with the request time, matching the miss's collectedAt.
-      const filledAt = now();
       const value = await load();
+      // Stamp the fill with when the provider's answer arrived, not when the request started.
+      const filledAt = now();
       const ttl = config.ttlMs[lifetime?.(value) ?? kind];
       if (ttl > 0 && config.maxEntries > 0) {
         entries.set(id, { value, filledAt, expiresAt: filledAt.getTime() + ttl });
@@ -114,8 +114,8 @@ export function createProviderCache(config: CacheConfig, now: () => Date): Provi
 
 /**
  * Marks a result built from a cache lookup. On a hit it sets `cached: true`,
- * `cachedAt`, and `collectedAt` to the fill time (when perfkit actually
- * fetched the evidence); on a miss it sets `cached: false` and leaves
+ * `cachedAt`, and `collectedAt` to the fill time (when the provider's answer
+ * arrived); on a miss it sets `cached: false` and leaves
  * `collectedAt` alone.
  */
 export function withCacheFields<R extends { cached: boolean; cachedAt?: string; collectedAt: string }>(
