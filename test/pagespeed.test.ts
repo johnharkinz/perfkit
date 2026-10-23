@@ -83,12 +83,31 @@ describe('performance_pagespeed', () => {
       cached: false,
       performanceScore: 62,
     });
+    // Lighthouse puts a no-break space between number and unit in displayValue; it is passed through as sent.
     expect(out['labMetrics']).toEqual({
-      FCP: { value: 2712.4, unit: 'ms', score: 0.61, displayValue: '2.7 s', auditId: 'first-contentful-paint' },
-      LCP: { value: 4310.7, unit: 'ms', score: 0.42, displayValue: '4.3 s', auditId: 'largest-contentful-paint' },
-      CLS: { value: 0.012, unit: 'unitless', score: 0.99, displayValue: '0.012', auditId: 'cumulative-layout-shift' },
-      TBT: { value: 287.5, unit: 'ms', score: 0.78, displayValue: '290 ms', auditId: 'total-blocking-time' },
-      SI: { value: 4630, unit: 'ms', score: 0.7, displayValue: '4.6 s', auditId: 'speed-index' },
+      FCP: {
+        value: 3755.7245496953874,
+        unit: 'ms',
+        score: 0.28,
+        displayValue: '3.8\u00a0s',
+        auditId: 'first-contentful-paint',
+      },
+      LCP: {
+        value: 3755.7245496953874,
+        unit: 'ms',
+        score: 0.56,
+        displayValue: '3.8\u00a0s',
+        auditId: 'largest-contentful-paint',
+      },
+      CLS: {
+        value: 0.0035126120733915906,
+        unit: 'unitless',
+        score: 1,
+        displayValue: '0.004',
+        auditId: 'cumulative-layout-shift',
+      },
+      TBT: { value: 588, unit: 'ms', score: 0.5, displayValue: '590\u00a0ms', auditId: 'total-blocking-time' },
+      SI: { value: 5496.02146283892, unit: 'ms', score: 0.55, displayValue: '5.5\u00a0s', auditId: 'speed-index' },
     });
     expect(JSON.stringify(out)).not.toMatch(/"rating"/);
     expect(out).not.toHaveProperty('categoryScores');
@@ -120,16 +139,20 @@ describe('performance_pagespeed', () => {
     };
     const psi = () => fixture<Lhr>('psi/runpagespeed-mobile.json');
 
-    it('lists failing performance audits (score < 0.9, no metric audits) by time savings, then the pinned layout-shift culprits', async () => {
+    it('lists failing performance audits (score < 0.9, no metric audits) by time savings, capped, then the pinned LCP and layout-shift audits', async () => {
       const res = await call(psi())();
 
       expect(auditsOf(res).map((a) => a.id)).toEqual([
-        'render-blocking-insight', // 863 ms
-        'unused-javascript', // 580 ms
-        'image-delivery-insight', // LCP 450 ms (metric savings only)
-        'mainthread-work-breakdown', // TBT 250 ms (metric savings only)
-        'lcp-breakdown-insight', // LCP 0 ms
-        'bf-cache', // no estimate
+        'render-blocking-insight', // LCP/FCP 2250 ms (metric savings only)
+        'bootup-time', // TBT 700 ms
+        'mainthread-work-breakdown', // TBT 600 ms
+        'unused-css-rules', // 450 ms
+        'unused-javascript', // 0 ms, 337 KB
+        'font-display-insight', // 0 ms
+        'image-delivery-insight', // 0 ms
+        'network-dependency-tree-insight', // 0 ms
+        // forced-reflow-insight (no estimate) and unsized-images (CLS only) lose their slots to the pinned audits
+        'lcp-breakdown-insight', // passing, but always included
         'cls-culprits-insight', // passing, but always included
       ]);
     });
@@ -138,28 +161,30 @@ describe('performance_pagespeed', () => {
       const audits = auditsOf(await call(psi())());
       const byId = Object.fromEntries(audits.map((a) => [a.id, a]));
 
-      expect(byId['render-blocking-insight']?.savings).toEqual({ ms: 863, metrics: { FCP: 850, LCP: 850 } });
-      expect(byId['unused-javascript']?.savings).toEqual({ ms: 580, bytes: 94194, metrics: { FCP: 0, LCP: 600 } });
-      expect(byId['image-delivery-insight']?.savings).toEqual({ bytes: 178394, metrics: { FCP: 0, LCP: 450 } });
-      // A diagnostic's numericValue is a measurement (2.9 s of main-thread work), not a saving.
-      expect(byId['mainthread-work-breakdown']?.savings).toEqual({ metrics: { TBT: 250 } });
-      expect(byId['bf-cache']).not.toHaveProperty('savings');
+      // Lighthouse 13 insights carry their estimate in metricSavings only (the "Est savings" text is not parsed).
+      expect(byId['render-blocking-insight']?.savings).toEqual({ metrics: { LCP: 2250, FCP: 2250 } });
+      expect(byId['unused-css-rules']?.savings).toEqual({ ms: 450, bytes: 133945, metrics: { LCP: 450, FCP: 450 } });
+      expect(byId['unused-javascript']?.savings).toEqual({ ms: 0, bytes: 337465, metrics: { LCP: 0, FCP: 0 } });
+      // A diagnostic's numericValue is a measurement (3.1 s of main-thread work), not a saving.
+      expect(byId['mainthread-work-breakdown']?.savings).toEqual({ metrics: { TBT: 600 } });
+      expect(byId['network-dependency-tree-insight']?.savings).toEqual({ metrics: { LCP: 0 } });
     });
 
     it('gives each audit its id, title, displayValue, score and a truncated description', async () => {
       const audits = auditsOf(await call(psi())());
 
-      expect(audits.find((a) => a.id === 'bf-cache')).toEqual({
-        id: 'bf-cache',
-        title: 'Page prevented back/forward cache restoration',
+      expect(audits.find((a) => a.id === 'bootup-time')).toEqual({
+        id: 'bootup-time',
+        title: 'Reduce JavaScript execution time',
         description: expect.any(String),
-        displayValue: '1 failure reason',
+        displayValue: '1.4\u00a0s',
         score: 0,
+        savings: { metrics: { TBT: 700 } },
       });
       expect(audits.find((a) => a.id === 'lcp-breakdown-insight')?.displayValue).toBeNull();
       for (const a of audits) expect(a.description.length).toBeLessThanOrEqual(200);
       const long = audits.find((a) => a.id === 'render-blocking-insight')?.description ?? '';
-      expect(long).toMatch(/^Requests are blocking the page’s initial render/);
+      expect(long).toMatch(/^Requests are blocking the page's initial render/);
       expect(long.endsWith('…')).toBe(true);
     });
 
@@ -168,14 +193,26 @@ describe('performance_pagespeed', () => {
 
       expect(audits.find((a) => a.id === 'lcp-breakdown-insight')?.elements).toEqual([
         {
-          selector: 'main > section.hero > img',
-          nodeLabel: 'Chrome for Developers',
-          snippet: '<img src="/images/hero.webp" alt="Chrome for Developers">',
+          selector:
+            'div.devsite-landing-row-inner > header.devsite-landing-row-header > div.devsite-landing-row-header-text > h2#a-powerful-web-span-classline2made-easierspan',
+          nodeLabel: 'A Powerful Web.\nMade Easier.',
+          snippet: expect.stringMatching(/^<h2 id="a-powerful-web-span-classline2made-easierspan"/),
         },
       ]);
-      expect(audits.find((a) => a.id === 'cls-culprits-insight')?.elements).toEqual([
-        { selector: 'body > div.banner', nodeLabel: 'Cookie banner', snippet: '<div class="banner">', score: 0.012 },
-      ]);
+      // The insight's "Total" row (a text value, not a page element) is skipped.
+      const culprits = audits.find((a) => a.id === 'cls-culprits-insight')?.elements;
+      expect(culprits).toHaveLength(3);
+      expect(culprits?.[0]).toEqual({
+        selector:
+          'header.devsite-landing-row-header > div.devsite-landing-row-header-text > h2#a-powerful-web-span-classline2made-easierspan > span.line2',
+        nodeLabel: 'Made Easier.',
+        snippet: '<span class="line2">',
+        score: 0.003014180821005272,
+      });
+      expect(culprits?.[1]).toMatchObject({
+        snippet: '<div class="devsite-top-logo-row-middle">',
+        score: 0.0003963025124659057,
+      });
     });
 
     it('caps the list at 10 while keeping the LCP and layout-shift audits', async () => {
@@ -189,7 +226,7 @@ describe('performance_pagespeed', () => {
           description: '',
           score: 0.5,
           scoreDisplayMode: 'metricSavings',
-          metricSavings: { LCP: 1000 + i },
+          metricSavings: { LCP: 3000 + i },
         };
         lhr.categories.performance.auditRefs.push({ id, weight: 0, group: 'diagnostics' });
       }
@@ -214,8 +251,8 @@ describe('performance_pagespeed', () => {
           scoreDisplayMode: 'metricSavings',
           ...(bytes === undefined
             ? {}
-            : { details: { type: 'opportunity', overallSavingsMs: 2000, overallSavingsBytes: bytes } }),
-          ...(bytes === undefined ? { numericValue: 2000, numericUnit: 'millisecond' } : {}),
+            : { details: { type: 'opportunity', overallSavingsMs: 5000, overallSavingsBytes: bytes } }),
+          ...(bytes === undefined ? { numericValue: 5000, numericUnit: 'millisecond' } : {}),
         };
         lhr.categories.performance.auditRefs.push({ id, weight, group: 'insights' });
       };
@@ -239,9 +276,13 @@ describe('performance_pagespeed', () => {
 
       expect(audits.at(-1)).toMatchObject({
         id: 'layout-shifts',
-        displayValue: '1 layout shift found',
-        savings: { metrics: { CLS: 0.012 } },
-        elements: [{ selector: 'body > div.banner', nodeLabel: 'Cookie banner', score: 0.012 }],
+        displayValue: '3 layout shifts found',
+        savings: { metrics: { CLS: 0.004 } },
+        elements: [
+          { nodeLabel: 'Made Easier.', snippet: '<span class="line2">', score: 0.003014180821005272 },
+          { snippet: '<div class="devsite-top-logo-row-middle">', score: 0.0003963025124659057 },
+          { snippet: '<div class="devsite-top-logo-row-middle">', score: 0.000102128739920413 },
+        ],
       });
     });
 
@@ -341,13 +382,12 @@ describe('performance_pagespeed', () => {
       lighthouseVersion: '13.5.0',
       warnings: [],
       run: {
-        fetchTime: '2026-10-23T14:02:11.418Z',
-        analysisUTCTimestamp: '2026-10-23T14:02:11.418Z',
+        fetchTime: '2026-10-23T15:36:41.490Z',
+        analysisUTCTimestamp: '2026-10-23T15:36:41.490Z',
         formFactor: 'mobile',
-        throttlingMethod: 'simulate',
         locale: 'en-US',
-        benchmarkIndex: 2419,
-        totalTimeMs: 14873.2,
+        benchmarkIndex: 365,
+        totalTimeMs: 25719,
         runWarnings: [],
         networkUserAgent: expect.stringContaining('Android'),
       },

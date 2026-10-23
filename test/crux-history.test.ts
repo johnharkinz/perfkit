@@ -84,10 +84,15 @@ describe('performance_crux_history: URL history', () => {
     expect(out.metrics['INP']?.[0]).toEqual({
       start: '2025-12-21',
       end: '2026-01-17',
-      p75: 214,
+      p75: 290,
       rating: 'needs_improvement',
     });
-    expect(out.metrics['INP']?.[39]).toEqual({ start: '2026-09-20', end: '2026-10-17', p75: 148, rating: 'good' });
+    expect(out.metrics['INP']?.[39]).toEqual({
+      start: '2026-09-20',
+      end: '2026-10-17',
+      p75: 310,
+      rating: 'needs_improvement',
+    });
     expect(out.metrics['CLS']?.[39]).toEqual({ start: '2026-09-20', end: '2026-10-17', p75: 0.02, rating: 'good' });
     expect(out.warnings).toHaveLength(1);
     expect(out.warnings[0]).toMatch(OVERLAP_WARNING);
@@ -158,14 +163,14 @@ describe('performance_crux_history: gaps', () => {
     expect(res.isError ?? false).toBe(false);
     const out = res.structuredContent as { metrics: Record<string, unknown[]>; warnings: string[] };
     expect(out.metrics['LCP']).toEqual([
-      { start: '2026-08-16', end: '2026-09-12', p75: 2188, rating: 'good' },
+      { start: '2026-08-16', end: '2026-09-12', p75: 3076, rating: 'needs_improvement' },
       { start: '2026-08-23', end: '2026-09-19', p75: null, rating: null },
-      { start: '2026-08-30', end: '2026-09-26', p75: 2183, rating: 'good' },
-      { start: '2026-09-06', end: '2026-10-03', p75: 2181, rating: 'good' },
+      { start: '2026-08-30', end: '2026-09-26', p75: 3061, rating: 'needs_improvement' },
+      { start: '2026-09-06', end: '2026-10-03', p75: 3081, rating: 'needs_improvement' },
       { start: '2026-09-13', end: '2026-10-10', p75: null, rating: null },
-      { start: '2026-09-20', end: '2026-10-17', p75: 2176, rating: 'good' },
+      { start: '2026-09-20', end: '2026-10-17', p75: 3120, rating: 'needs_improvement' },
     ]);
-    expect(out.metrics['CLS']?.map((p) => (p as { p75: unknown }).p75)).toEqual([0.05, null, 0.05, 0.05, null, 0.05]);
+    expect(out.metrics['CLS']?.map((p) => (p as { p75: unknown }).p75)).toEqual([0.02, null, 0.02, 0.02, null, 0.02]);
     for (const series of Object.values(out.metrics)) expect(series).toHaveLength(6);
     expect(out.warnings.some((w) => OVERLAP_WARNING.test(w))).toBe(true);
   });

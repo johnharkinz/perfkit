@@ -10,20 +10,20 @@
           {
             "start": "0.00",
             "end": "0.10",
-            "densities": [0.92, "NaN", 0.9206, 0.9209, "NaN", 0.9215]
+            "densities": [0.8778, "NaN", 0.8701, 0.8653, "NaN", 0.8629]
           },
           {
             "start": "0.10",
             "end": "0.25",
-            "densities": [0.05, "NaN", 0.0496, 0.0494, "NaN", 0.049]
+            "densities": [0.0654, "NaN", 0.0688, 0.0708, "NaN", 0.0727]
           },
           {
             "start": "0.25",
-            "densities": [0.03, "NaN", 0.0298, 0.0297, "NaN", 0.0295]
+            "densities": [0.0569, "NaN", 0.061, 0.0639, "NaN", 0.0644]
           }
         ],
         "percentilesTimeseries": {
-          "p75s": ["0.05", null, "0.05", "0.05", null, "0.05"]
+          "p75s": ["0.02", null, "0.02", "0.02", null, "0.02"]
         }
       },
       "experimental_time_to_first_byte": {
@@ -31,20 +31,20 @@
           {
             "start": 0,
             "end": 800,
-            "densities": [0.69, "NaN", 0.6906, 0.6909, "NaN", 0.6915]
+            "densities": [0.1708, "NaN", 0.2003, 0.2128, "NaN", 0.2274]
           },
           {
             "start": 800,
             "end": 1800,
-            "densities": [0.23, "NaN", 0.2296, 0.2294, "NaN", 0.229]
+            "densities": [0.5485, "NaN", 0.5325, 0.5237, "NaN", 0.5067]
           },
           {
             "start": 1800,
-            "densities": [0.08, "NaN", 0.0798, 0.0797, "NaN", 0.0795]
+            "densities": [0.2808, "NaN", 0.2672, 0.2635, "NaN", 0.2659]
           }
         ],
         "percentilesTimeseries": {
-          "p75s": [960, null, 957, 956, null, 954]
+          "p75s": [1918, null, 1868, 1859, null, 1870]
         }
       },
       "first_contentful_paint": {
@@ -52,20 +52,20 @@
           {
             "start": 0,
             "end": 1800,
-            "densities": [0.76, "NaN", 0.7606, 0.7609, "NaN", 0.7615]
+            "densities": [0.4381, "NaN", 0.4551, 0.4518, "NaN", 0.4503]
           },
           {
             "start": 1800,
             "end": 3000,
-            "densities": [0.16, "NaN", 0.1596, 0.1594, "NaN", 0.159]
+            "densities": [0.3064, "NaN", 0.2967, 0.2957, "NaN", 0.2906]
           },
           {
             "start": 3000,
-            "densities": [0.08, "NaN", 0.0798, 0.0797, "NaN", 0.0795]
+            "densities": [0.2554, "NaN", 0.2482, 0.2525, "NaN", 0.2591]
           }
         ],
         "percentilesTimeseries": {
-          "p75s": [1802, null, 1798, 1796, null, 1793]
+          "p75s": [3032, null, 2997, 3016, null, 3056]
         }
       },
       "interaction_to_next_paint": {
@@ -73,20 +73,20 @@
           {
             "start": 0,
             "end": 200,
-            "densities": [0.86, "NaN", 0.8606, 0.8609, "NaN", 0.8615]
+            "densities": [0.5895, "NaN", 0.5891, 0.5813, "NaN", 0.5664]
           },
           {
             "start": 200,
             "end": 500,
-            "densities": [0.11, "NaN", 0.1096, 0.1094, "NaN", 0.109]
+            "densities": [0.2994, "NaN", 0.2971, 0.3009, "NaN", 0.3092]
           },
           {
             "start": 500,
-            "densities": [0.03, "NaN", 0.0298, 0.0297, "NaN", 0.0295]
+            "densities": [0.1111, "NaN", 0.1139, 0.1177, "NaN", 0.1244]
           }
         ],
         "percentilesTimeseries": {
-          "p75s": [214, null, 211, 209, null, 206]
+          "p75s": [295, null, 295, 301, null, 310]
         }
       },
       "largest_contentful_paint": {
@@ -94,20 +94,20 @@
           {
             "start": 0,
             "end": 2500,
-            "densities": [0.83, "NaN", 0.8306, 0.8309, "NaN", 0.8315]
+            "densities": [0.6434, "NaN", 0.6501, 0.6475, "NaN", 0.64]
           },
           {
             "start": 2500,
             "end": 4000,
-            "densities": [0.11, "NaN", 0.1096, 0.1094, "NaN", 0.109]
+            "densities": [0.1964, "NaN", 0.1906, 0.1931, "NaN", 0.1968]
           },
           {
             "start": 4000,
-            "densities": [0.06, "NaN", 0.0598, 0.0597, "NaN", 0.0595]
+            "densities": [0.1602, "NaN", 0.1592, 0.1595, "NaN", 0.1633]
           }
         ],
         "percentilesTimeseries": {
-          "p75s": [2188, null, 2183, 2181, null, 2176]
+          "p75s": [3076, null, 3061, 3081, null, 3120]
         }
       }
     },

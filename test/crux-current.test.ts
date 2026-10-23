@@ -55,26 +55,26 @@ describe('performance_crux_current', () => {
       collectionPeriod: { start: '2026-09-24', end: '2026-10-21' },
       metrics: {
         INP: {
-          p75: 147,
+          p75: 310,
           unit: 'ms',
-          rating: 'good',
+          rating: 'needs_improvement',
           group: 'core_web_vital',
           histogram: [
-            { start: 0, end: 200, density: 0.8846 },
-            { start: 200, end: 500, density: 0.0897 },
-            { start: 500, end: null, density: 0.0257 },
+            { start: 0, end: 200, density: 0.5629 },
+            { start: 200, end: 500, density: 0.3117 },
+            { start: 500, end: null, density: 0.1254 },
           ],
           provenance: { source: 'crux', cruxMetric: 'interaction_to_next_paint' },
         },
         LCP: {
-          p75: 2093,
+          p75: 3114,
           unit: 'ms',
-          rating: 'good',
+          rating: 'needs_improvement',
           group: 'core_web_vital',
           histogram: [
-            { start: 0, end: 2500, density: 0.8433 },
-            { start: 2500, end: 4000, density: 0.0987 },
-            { start: 4000, end: null, density: 0.058 },
+            { start: 0, end: 2500, density: 0.6406 },
+            { start: 2500, end: 4000, density: 0.1961 },
+            { start: 4000, end: null, density: 0.1633 },
           ],
           provenance: { source: 'crux', cruxMetric: 'largest_contentful_paint' },
         },
@@ -84,33 +84,33 @@ describe('performance_crux_current', () => {
           rating: 'good',
           group: 'core_web_vital',
           histogram: [
-            { start: 0, end: 0.1, density: 0.9312 },
-            { start: 0.1, end: 0.25, density: 0.0421 },
-            { start: 0.25, end: null, density: 0.0267 },
+            { start: 0, end: 0.1, density: 0.8631 },
+            { start: 0.1, end: 0.25, density: 0.0725 },
+            { start: 0.25, end: null, density: 0.0644 },
           ],
           provenance: { source: 'crux', cruxMetric: 'cumulative_layout_shift' },
         },
         FCP: {
-          p75: 1734,
+          p75: 3049,
           unit: 'ms',
-          rating: 'good',
+          rating: 'poor',
           group: 'supporting',
           histogram: [
-            { start: 0, end: 1800, density: 0.7815 },
-            { start: 1800, end: 3000, density: 0.1468 },
-            { start: 3000, end: null, density: 0.0717 },
+            { start: 0, end: 1800, density: 0.4539 },
+            { start: 1800, end: 3000, density: 0.2891 },
+            { start: 3000, end: null, density: 0.2571 },
           ],
           provenance: { source: 'crux', cruxMetric: 'first_contentful_paint' },
         },
         TTFB: {
-          p75: 912,
+          p75: 1870,
           unit: 'ms',
-          rating: 'needs_improvement',
+          rating: 'poor',
           group: 'supporting',
           histogram: [
-            { start: 0, end: 800, density: 0.7124 },
-            { start: 800, end: 1800, density: 0.2213 },
-            { start: 1800, end: null, density: 0.0663 },
+            { start: 0, end: 800, density: 0.2268 },
+            { start: 800, end: 1800, density: 0.5051 },
+            { start: 1800, end: null, density: 0.2681 },
           ],
           provenance: { source: 'crux', cruxMetric: 'experimental_time_to_first_byte' },
         },
@@ -179,9 +179,9 @@ describe('performance_crux_current', () => {
 
     const metrics = (res.structuredContent as { metrics: Record<string, { p75: number; provenance: unknown }> })
       .metrics;
-    expect(metrics['TTFB']?.p75).toBe(912);
+    expect(metrics['TTFB']?.p75).toBe(1870);
     expect(metrics['TTFB']?.provenance).toEqual({ source: 'crux', cruxMetric: 'time_to_first_byte' });
-    expect(metrics['INP']?.p75).toBe(147);
+    expect(metrics['INP']?.p75).toBe(310);
   });
 
   it('converts string p75 values to numbers before rating', async () => {

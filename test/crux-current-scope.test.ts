@@ -31,7 +31,7 @@ describe('performance_crux_current: origin scope', () => {
       requestedKey: { origin: 'https://developer.chrome.com', formFactor: 'PHONE' },
       returnedKey: { origin: 'https://developer.chrome.com', formFactor: 'PHONE' },
       warnings: [],
-      metrics: { INP: { p75: 168, rating: 'good' }, LCP: { p75: 2318 } },
+      metrics: { INP: { p75: 250, rating: 'needs_improvement' }, LCP: { p75: 3090 } },
     });
   });
 
