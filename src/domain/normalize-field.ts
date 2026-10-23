@@ -8,12 +8,22 @@ import {
   SCHEMA_VERSION,
   type CruxKey,
   type FieldCurrentResult,
+  type FieldHistoryMetrics,
+  type FieldHistoryResult,
   type FieldMetric,
   type FieldMetrics,
+  type HistoryPoint,
+  type MetricUnits,
   type ResultContext,
   type Scope,
 } from './response.js';
-import type { CruxCurrentRecord, CruxDate, CruxFormFactor, CruxRawMetric } from '../providers/crux.js';
+import type {
+  CruxCurrentRecord,
+  CruxDate,
+  CruxFormFactor,
+  CruxHistoryRecord,
+  CruxRawMetric,
+} from '../providers/crux.js';
 
 /** CrUX dates are Pacific-time calendar dates; format them directly, never via Date/UTC. */
 export function formatCruxDate(d: CruxDate): string {
@@ -68,7 +78,10 @@ export function requestedCruxKey(ctx: CruxRequestContext): CruxKey {
 }
 
 /** The key CrUX returned, in output form, plus a warning when its target differs from the requested one. */
-function returnedCruxKey(record: CruxCurrentRecord, ctx: CruxRequestContext): { key: CruxKey; warnings: string[] } {
+function returnedCruxKey(
+  record: Pick<CruxCurrentRecord, 'key'>,
+  ctx: CruxRequestContext,
+): { key: CruxKey; warnings: string[] } {
   const returnedScope: Scope = record.key.origin !== undefined && record.key.url === undefined ? 'origin' : 'url';
   const returnedTarget = record.key[returnedScope];
   const key = keyFor(returnedScope, returnedTarget, record.key.formFactor, ctx.redact);
@@ -141,6 +154,87 @@ export function normalizeCruxCurrent(record: CruxCurrentRecord, ctx: CruxRequest
       end: formatCruxDate(record.collectionPeriod.lastDate),
     },
     metrics,
+    omittedMetrics,
+  };
+}
+
+/** Fixed on every history result: consecutive points share three of their four weeks. */
+export const HISTORY_OVERLAP_WARNING =
+  'Field history points are overlapping 28-day windows, not independent samples: each window shares about ' +
+  'three weeks with its neighbours, so consecutive points move together.';
+
+export interface CruxHistoryRequestContext extends CruxRequestContext {
+  periods: number;
+}
+
+function historyBase(ctx: CruxHistoryRequestContext) {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    requestedUrl: ctx.requestedUrl,
+    provider: 'crux',
+    dataType: 'field_history',
+    scope: ctx.scope,
+    device: ctx.device,
+    collectedAt: ctx.collectedAt,
+    cached: false,
+    periods: ctx.periods,
+    requestedKey: requestedCruxKey(ctx),
+  } as const;
+}
+
+/** CrUX publishes no field history for this key: a valid finding. Like current, it never falls back to origin. */
+export function noDataCruxHistory(ctx: CruxHistoryRequestContext): FieldHistoryResult {
+  const what = ctx.scope === 'url' ? 'this URL' : 'this origin';
+  const device = ctx.device === 'ALL' ? 'all devices' : `device ${ctx.device}`;
+  const warnings = [`CrUX has no field history for ${what} on ${device} (too little traffic).`];
+  if (ctx.scope === 'url') {
+    warnings.push(
+      'Origin-level field history may exist: request it separately with scope "origin". It describes the whole site, not this URL.',
+    );
+  }
+  return {
+    ...historyBase(ctx),
+    status: 'no_data',
+    warnings: [HISTORY_OVERLAP_WARNING, ...warnings],
+    metrics: {},
+    omittedMetrics: [...METRIC_NAMES],
+  };
+}
+
+/**
+ * One {start, end, p75, rating} point per collection period, in CrUX's order
+ * (oldest first). Missing points stay null; nothing is dropped, interpolated
+ * or compared across points.
+ */
+export function normalizeCruxHistory(record: CruxHistoryRecord, ctx: CruxHistoryRequestContext): FieldHistoryResult {
+  const collectionPeriods = record.collectionPeriods.map((p) => ({
+    start: formatCruxDate(p.firstDate),
+    end: formatCruxDate(p.lastDate),
+  }));
+  const metrics: FieldHistoryMetrics = {};
+  const units: MetricUnits = {};
+  const omittedMetrics: MetricName[] = [];
+  for (const name of METRIC_NAMES) {
+    const raw = record.metrics[name];
+    if (!raw) {
+      omittedMetrics.push(name);
+      continue;
+    }
+    metrics[name] = collectionPeriods.map((period, i): HistoryPoint => {
+      const p75 = toNumber(raw.p75s[i]);
+      return { ...period, p75, rating: rate(name, p75) };
+    });
+    units[name] = METRICS[name].unit;
+  }
+  const returned = returnedCruxKey(record, ctx);
+  return {
+    ...historyBase(ctx),
+    status: 'ok',
+    warnings: [HISTORY_OVERLAP_WARNING, ...returned.warnings],
+    returnedKey: returned.key,
+    collectionPeriods,
+    metrics,
+    units,
     omittedMetrics,
   };
 }

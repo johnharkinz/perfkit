@@ -126,3 +126,75 @@ export function errorFieldCurrentResult(ctx: ResultContext & { scope: Scope }, e
     error,
   };
 }
+
+/** One field history window: real CrUX collection dates, and null p75/rating when CrUX had no data that week. */
+export const HistoryPointSchema = z.object({
+  start: z.string().describe('First day of this 28-day window, YYYY-MM-DD (inclusive).'),
+  end: z.string().describe('Last day of this 28-day window, YYYY-MM-DD (inclusive).'),
+  p75: z.number().nullable().describe('null when CrUX has no data for this window (never zero).'),
+  rating: z.enum(['good', 'needs_improvement', 'poor']).nullable().describe('null when p75 is null.'),
+});
+export type HistoryPoint = z.infer<typeof HistoryPointSchema>;
+
+/** History series keyed by canonical metric name, oldest window first; a metric Google did not return is absent. */
+export const FieldHistoryMetricsSchema = z.object(
+  Object.fromEntries(METRIC_NAMES.map((name) => [name, z.array(HistoryPointSchema).optional()])) as Record<
+    MetricName,
+    z.ZodOptional<z.ZodArray<typeof HistoryPointSchema>>
+  >,
+);
+export type FieldHistoryMetrics = z.infer<typeof FieldHistoryMetricsSchema>;
+
+const MetricUnitSchema = z.enum(['ms', 'unitless']);
+
+/** The unit of each returned metric's p75 values. */
+export const MetricUnitsSchema = z.object(
+  Object.fromEntries(METRIC_NAMES.map((name) => [name, MetricUnitSchema.optional()])) as Record<
+    MetricName,
+    z.ZodOptional<typeof MetricUnitSchema>
+  >,
+);
+export type MetricUnits = z.infer<typeof MetricUnitsSchema>;
+
+export const FieldHistoryResultSchema = z.object({
+  ...baseResultShape,
+  provider: z.literal('crux'),
+  dataType: z.literal('field_history'),
+  scope: ScopeSchema,
+  periods: z.number().int().describe('How many weekly windows perfkit requested (1–40).'),
+  requestedKey: CruxKeySchema.optional().describe('The URL or origin perfkit asked CrUX for.'),
+  returnedKey: CruxKeySchema.optional().describe('The key CrUX reported for the returned record.'),
+  collectionPeriods: z
+    .array(CollectionPeriodSchema)
+    .optional()
+    .describe('Every overlapping 28-day window, oldest first; each metric series uses the same order.'),
+  metrics: FieldHistoryMetricsSchema.optional().describe(
+    'Per metric, one {start, end, p75, rating} point per window, oldest first. Gaps are null, never dropped.',
+  ),
+  units: MetricUnitsSchema.optional().describe('Unit of each returned metric p75.'),
+  omittedMetrics: z
+    .array(MetricNameSchema)
+    .optional()
+    .describe('Metrics perfkit requested that Google returned no data for. Absent data, not zero.'),
+});
+export type FieldHistoryResult = z.infer<typeof FieldHistoryResultSchema>;
+
+export function errorFieldHistoryResult(
+  ctx: ResultContext & { scope: Scope; periods: number },
+  error: ErrorInfo,
+): FieldHistoryResult {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    requestedUrl: ctx.requestedUrl,
+    provider: 'crux',
+    dataType: 'field_history',
+    scope: ctx.scope,
+    device: ctx.device,
+    status: 'error',
+    collectedAt: ctx.collectedAt,
+    cached: false,
+    warnings: [],
+    periods: ctx.periods,
+    error,
+  };
+}

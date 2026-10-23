@@ -1,0 +1,189 @@
+{
+  "record": {
+    "key": {
+      "formFactor": "PHONE",
+      "url": "https://developer.chrome.com/"
+    },
+    "metrics": {
+      "cumulative_layout_shift": {
+        "histogramTimeseries": [
+          {
+            "start": "0.00",
+            "end": "0.10",
+            "densities": [0.92, "NaN", 0.9206, 0.9209, "NaN", 0.9215]
+          },
+          {
+            "start": "0.10",
+            "end": "0.25",
+            "densities": [0.05, "NaN", 0.0496, 0.0494, "NaN", 0.049]
+          },
+          {
+            "start": "0.25",
+            "densities": [0.03, "NaN", 0.0298, 0.0297, "NaN", 0.0295]
+          }
+        ],
+        "percentilesTimeseries": {
+          "p75s": ["0.05", null, "0.05", "0.05", null, "0.05"]
+        }
+      },
+      "experimental_time_to_first_byte": {
+        "histogramTimeseries": [
+          {
+            "start": 0,
+            "end": 800,
+            "densities": [0.69, "NaN", 0.6906, 0.6909, "NaN", 0.6915]
+          },
+          {
+            "start": 800,
+            "end": 1800,
+            "densities": [0.23, "NaN", 0.2296, 0.2294, "NaN", 0.229]
+          },
+          {
+            "start": 1800,
+            "densities": [0.08, "NaN", 0.0798, 0.0797, "NaN", 0.0795]
+          }
+        ],
+        "percentilesTimeseries": {
+          "p75s": [960, null, 957, 956, null, 954]
+        }
+      },
+      "first_contentful_paint": {
+        "histogramTimeseries": [
+          {
+            "start": 0,
+            "end": 1800,
+            "densities": [0.76, "NaN", 0.7606, 0.7609, "NaN", 0.7615]
+          },
+          {
+            "start": 1800,
+            "end": 3000,
+            "densities": [0.16, "NaN", 0.1596, 0.1594, "NaN", 0.159]
+          },
+          {
+            "start": 3000,
+            "densities": [0.08, "NaN", 0.0798, 0.0797, "NaN", 0.0795]
+          }
+        ],
+        "percentilesTimeseries": {
+          "p75s": [1802, null, 1798, 1796, null, 1793]
+        }
+      },
+      "interaction_to_next_paint": {
+        "histogramTimeseries": [
+          {
+            "start": 0,
+            "end": 200,
+            "densities": [0.86, "NaN", 0.8606, 0.8609, "NaN", 0.8615]
+          },
+          {
+            "start": 200,
+            "end": 500,
+            "densities": [0.11, "NaN", 0.1096, 0.1094, "NaN", 0.109]
+          },
+          {
+            "start": 500,
+            "densities": [0.03, "NaN", 0.0298, 0.0297, "NaN", 0.0295]
+          }
+        ],
+        "percentilesTimeseries": {
+          "p75s": [214, null, 211, 209, null, 206]
+        }
+      },
+      "largest_contentful_paint": {
+        "histogramTimeseries": [
+          {
+            "start": 0,
+            "end": 2500,
+            "densities": [0.83, "NaN", 0.8306, 0.8309, "NaN", 0.8315]
+          },
+          {
+            "start": 2500,
+            "end": 4000,
+            "densities": [0.11, "NaN", 0.1096, 0.1094, "NaN", 0.109]
+          },
+          {
+            "start": 4000,
+            "densities": [0.06, "NaN", 0.0598, 0.0597, "NaN", 0.0595]
+          }
+        ],
+        "percentilesTimeseries": {
+          "p75s": [2188, null, 2183, 2181, null, 2176]
+        }
+      }
+    },
+    "collectionPeriods": [
+      {
+        "firstDate": {
+          "year": 2026,
+          "month": 8,
+          "day": 16
+        },
+        "lastDate": {
+          "year": 2026,
+          "month": 9,
+          "day": 12
+        }
+      },
+      {
+        "firstDate": {
+          "year": 2026,
+          "month": 8,
+          "day": 23
+        },
+        "lastDate": {
+          "year": 2026,
+          "month": 9,
+          "day": 19
+        }
+      },
+      {
+        "firstDate": {
+          "year": 2026,
+          "month": 8,
+          "day": 30
+        },
+        "lastDate": {
+          "year": 2026,
+          "month": 9,
+          "day": 26
+        }
+      },
+      {
+        "firstDate": {
+          "year": 2026,
+          "month": 9,
+          "day": 6
+        },
+        "lastDate": {
+          "year": 2026,
+          "month": 10,
+          "day": 3
+        }
+      },
+      {
+        "firstDate": {
+          "year": 2026,
+          "month": 9,
+          "day": 13
+        },
+        "lastDate": {
+          "year": 2026,
+          "month": 10,
+          "day": 10
+        }
+      },
+      {
+        "firstDate": {
+          "year": 2026,
+          "month": 9,
+          "day": 20
+        },
+        "lastDate": {
+          "year": 2026,
+          "month": 10,
+          "day": 17
+        }
+      }
+    ]
+  }
+}

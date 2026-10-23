@@ -7,11 +7,15 @@ import { McpServer } from '@modelcontextprotocol/server';
 import type { AppDeps } from './app.js';
 import { toErrorInfo } from './domain/errors.js';
 import { cruxCurrentTool } from './tools/crux-current.js';
+import { cruxHistoryTool } from './tools/crux-history.js';
 import type { ToolContext, ToolDefinition } from './tools/tool.js';
 import { SERVER_NAME, SERVER_VERSION } from './version.js';
 
 // Add new tools here.
-const TOOLS: readonly ToolDefinition[] = [cruxCurrentTool as unknown as ToolDefinition];
+const TOOLS: readonly ToolDefinition[] = [
+  cruxCurrentTool as unknown as ToolDefinition,
+  cruxHistoryTool as unknown as ToolDefinition,
+];
 
 export function createServer(deps: AppDeps): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { capabilities: { tools: {} } });

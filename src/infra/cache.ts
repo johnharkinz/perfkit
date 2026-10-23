@@ -25,6 +25,8 @@ export interface CacheKeyParts {
   device: string;
   categories?: readonly string[];
   metrics?: readonly string[];
+  /** Field history: how many windows were requested. */
+  periods?: number;
 }
 
 export interface CacheConfig {
@@ -72,6 +74,7 @@ export function cacheKey(kind: CacheKind, parts: CacheKeyParts): string {
     parts.device,
     sorted(parts.categories),
     sorted(parts.metrics),
+    parts.periods ?? null,
   ]);
 }
 
