@@ -8,7 +8,7 @@
 import * as z from 'zod';
 import { normalizeCruxCurrent } from '../domain/normalize-field.js';
 import { errorFieldCurrentResult, FieldCurrentResultSchema, type FieldCurrentResult } from '../domain/response.js';
-import { displayForInvalid, parseTarget } from '../security/target.js';
+import { displayForInvalid } from '../security/target.js';
 import type { ToolDefinition } from './tool.js';
 
 const InputSchema = z.object({
@@ -30,7 +30,7 @@ export const cruxCurrentTool: ToolDefinition<typeof InputSchema, typeof FieldCur
 
   async run(args: Input, ctx): Promise<FieldCurrentResult> {
     const base = { device: args.device, collectedAt: ctx.startedAt.toISOString(), scope: 'url' as const };
-    const parsed = parseTarget(args.url);
+    const parsed = await ctx.deps.targets.validate(args.url);
     if (!parsed.ok) {
       return errorFieldCurrentResult({ ...base, requestedUrl: displayForInvalid(args.url) }, parsed.error.toInfo());
     }
