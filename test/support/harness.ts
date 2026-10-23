@@ -44,19 +44,26 @@ export function testClock(start = TEST_START_TIME): TestClock {
 export interface Perfkit {
   client: Client;
   stderr: CapturedStream;
+  /** Every backoff delay (ms) perfkit asked to wait; the harness returns at once instead of waiting. */
+  sleeps: number[];
   /** The server's clock: fixed at TEST_START_TIME until advanced. */
   clock: TestClock;
   close(): Promise<void>;
 }
 
-/** Connects an in-memory MCP client to the real perfkit server, with an injected fetch. */
-export async function connectPerfkit(options: {
+export interface ConnectOptions {
   fetch: typeof fetch;
   env?: Record<string, string>;
   /** DNS resolver used when PERFKIT_DNS_CHECK=1 (defaults to the real resolver). */
   lookup?: HostLookup;
-}): Promise<Perfkit> {
+  /** Jitter source for backoff (default Math.random). */
+  random?: () => number;
+}
+
+/** Connects an in-memory MCP client to the real perfkit server, with an injected fetch. */
+export async function connectPerfkit(options: ConnectOptions): Promise<Perfkit> {
   const stderr = new CapturedStream();
+  const sleeps: number[] = [];
   const clock = testClock();
   const app = createApp({
     env: options.env ?? { GOOGLE_API_KEY: TEST_API_KEY },
@@ -64,6 +71,10 @@ export async function connectPerfkit(options: {
     ...(options.lookup ? { lookup: options.lookup } : {}),
     stderr,
     now: clock.now,
+    sleep: async (ms) => {
+      sleeps.push(ms);
+    },
+    ...(options.random ? { random: options.random } : {}),
   });
   const server = createServer(app);
   const client = new Client({ name: 'perfkit-test', version: '0.0.0' });
@@ -72,6 +83,7 @@ export async function connectPerfkit(options: {
   return {
     client,
     stderr,
+    sleeps,
     clock,
     async close() {
       await client.close();
