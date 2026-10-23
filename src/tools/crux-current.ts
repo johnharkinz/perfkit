@@ -12,7 +12,7 @@ import { CRUX_REQUEST_METRICS } from '../domain/metrics.js';
 import { noDataCruxCurrent, normalizeCruxCurrent } from '../domain/normalize-field.js';
 import { withCacheFields } from '../infra/cache.js';
 import { errorFieldCurrentResult, FieldCurrentResultSchema, type FieldCurrentResult } from '../domain/response.js';
-import { displayForInvalid, parseTarget } from '../security/target.js';
+import { displayForInvalid, redactUrl } from '../security/target.js';
 import type { ToolDefinition } from './tool.js';
 
 const InputSchema = z.object({
@@ -45,7 +45,7 @@ export const cruxCurrentTool: ToolDefinition<typeof InputSchema, typeof FieldCur
 
   async run(args: Input, ctx): Promise<FieldCurrentResult> {
     const base = { device: args.device, collectedAt: ctx.startedAt.toISOString(), scope: args.scope };
-    const parsed = parseTarget(args.url);
+    const parsed = await ctx.deps.targets.validate(args.url);
     if (!parsed.ok) {
       return errorFieldCurrentResult({ ...base, requestedUrl: displayForInvalid(args.url) }, parsed.error.toInfo());
     }
@@ -55,7 +55,7 @@ export const cruxCurrentTool: ToolDefinition<typeof InputSchema, typeof FieldCur
       requestedUrl: target.display,
       target: args.scope === 'origin' ? target.origin : target.url,
       formFactor: args.device === 'ALL' ? undefined : args.device,
-      redact: displayForInvalid,
+      redact: redactUrl,
     };
     const lookup = await ctx.deps.cache.getOrLoad({
       kind: 'cruxCurrent',

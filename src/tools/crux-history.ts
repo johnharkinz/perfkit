@@ -12,7 +12,7 @@ import { CRUX_REQUEST_METRICS } from '../domain/metrics.js';
 import { noDataCruxHistory, normalizeCruxHistory } from '../domain/normalize-field.js';
 import { errorFieldHistoryResult, FieldHistoryResultSchema, type FieldHistoryResult } from '../domain/response.js';
 import { withCacheFields } from '../infra/cache.js';
-import { displayForInvalid, parseTarget } from '../security/target.js';
+import { displayForInvalid, redactUrl } from '../security/target.js';
 import type { ToolDefinition } from './tool.js';
 
 export const MAX_HISTORY_PERIODS = 40;
@@ -57,13 +57,10 @@ export const cruxHistoryTool: ToolDefinition<typeof InputSchema, typeof FieldHis
       scope: args.scope,
       periods: args.periods,
     };
-    const parsed = parseTarget(args.url);
-    if (!parsed.ok) {
-      return errorFieldHistoryResult({ ...base, requestedUrl: displayForInvalid(args.url) }, parsed.error.toInfo());
-    }
+    // Checked before the URL so a bad periods value never triggers the optional DNS check.
     if (!Number.isInteger(args.periods) || args.periods < 1 || args.periods > MAX_HISTORY_PERIODS) {
       return errorFieldHistoryResult(
-        { ...base, requestedUrl: parsed.target.display },
+        { ...base, requestedUrl: displayForInvalid(args.url) },
         {
           code: 'invalid_input',
           source: 'perfkit',
@@ -72,13 +69,17 @@ export const cruxHistoryTool: ToolDefinition<typeof InputSchema, typeof FieldHis
         },
       );
     }
+    const parsed = await ctx.deps.targets.validate(args.url);
+    if (!parsed.ok) {
+      return errorFieldHistoryResult({ ...base, requestedUrl: displayForInvalid(args.url) }, parsed.error.toInfo());
+    }
     const { target } = parsed;
     const request = {
       ...base,
       requestedUrl: target.display,
       target: args.scope === 'origin' ? target.origin : target.url,
       formFactor: args.device === 'ALL' ? undefined : args.device,
-      redact: displayForInvalid,
+      redact: redactUrl,
     };
     const lookup = await ctx.deps.cache.getOrLoad({
       kind: 'cruxHistory',
