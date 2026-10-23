@@ -245,6 +245,42 @@ describe('performance_pagespeed', () => {
       });
     });
 
+    it('reads a run whose audits carry details shapes perfkit does not use (a checklist’s keyed items)', async () => {
+      const body = psi();
+      const lhr = body.lighthouseResult;
+      lhr.audits['checklist-insight'] = {
+        id: 'checklist-insight',
+        title: 'Checklist',
+        description: '',
+        score: 0,
+        scoreDisplayMode: 'metricSavings',
+        metricSavings: { LCP: 5 },
+        details: { type: 'checklist', items: { noRedirects: { label: 'Avoids redirects', value: false } } },
+      };
+      lhr.categories.performance.auditRefs.push({ id: 'checklist-insight', weight: 0, group: 'insights' });
+
+      const res = await call(body)();
+
+      expect(res.structuredContent).toMatchObject({ status: 'ok' });
+      expect(auditsOf(res).find((a) => a.id === 'checklist-insight')).toMatchObject({
+        score: 0,
+        savings: { metrics: { LCP: 5 } },
+      });
+    });
+
+    it('drops an audit it cannot read instead of failing the whole run', async () => {
+      const body = psi();
+      const lhr = body.lighthouseResult;
+      lhr.audits['odd-audit'] = { id: 'odd-audit', title: 42, score: 'low', details: 'not an object' };
+      lhr.categories.performance.auditRefs.push({ id: 'odd-audit', weight: 0, group: 'diagnostics' });
+
+      const res = await call(body)();
+
+      expect(res.structuredContent).toMatchObject({ status: 'ok' });
+      expect(Object.keys((res.structuredContent as { labMetrics: object }).labMetrics)).toHaveLength(5);
+      expect(JSON.stringify(res)).not.toContain('odd-audit');
+    });
+
     it('treats not-applicable, manual, errored and unscored audits as not failing', async () => {
       const body = psi();
       const lhr = body.lighthouseResult;

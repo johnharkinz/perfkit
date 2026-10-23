@@ -31,8 +31,6 @@ export interface PagespeedQuery {
   logger: Logger;
 }
 
-const DetailsItemSchema = z.looseObject({});
-
 const AuditSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -48,11 +46,28 @@ const AuditSchema = z.object({
       type: z.string().optional(),
       overallSavingsMs: z.number().optional(),
       overallSavingsBytes: z.number().optional(),
-      items: z.array(DetailsItemSchema).optional(),
+      // Element extraction walks table/list items only; other shapes (a checklist's keyed object) are ignored.
+      items: z
+        .unknown()
+        .optional()
+        .transform((items) => (Array.isArray(items) ? (items as unknown[]) : undefined)),
     })
     .optional(),
 });
 export type PsiAudit = z.infer<typeof AuditSchema>;
+
+/**
+ * Audits are read one by one: an audit perfkit cannot read is dropped rather than rejecting the run, since
+ * Lighthouse adds and reshapes audits between versions and most of them are never shown.
+ */
+const AuditsSchema = z.record(z.string(), z.unknown()).transform((raw) => {
+  const audits: Record<string, PsiAudit> = {};
+  for (const [id, value] of Object.entries(raw)) {
+    const parsed = AuditSchema.safeParse(value);
+    if (parsed.success) audits[id] = parsed.data;
+  }
+  return audits;
+});
 
 const AuditRefSchema = z.object({ id: z.string(), weight: z.number().default(0), group: z.string().optional() });
 export type PsiAuditRef = z.infer<typeof AuditRefSchema>;
@@ -78,7 +93,7 @@ const LighthouseResultSchema = z.object({
   environment: z.object({ networkUserAgent: z.string().optional(), benchmarkIndex: z.number().optional() }).optional(),
   timing: z.object({ total: z.number().optional() }).optional(),
   categories: z.record(z.string(), CategorySchema).default({}),
-  audits: z.record(z.string(), AuditSchema).default({}),
+  audits: AuditsSchema.default({}),
 });
 
 const ResponseSchema = z.object({
