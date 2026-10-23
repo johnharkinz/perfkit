@@ -4,7 +4,7 @@
  * name. No rating or presentation logic lives here.
  *
  * Extension points:
- * - #3: a 404 becomes `{ kind: 'no_data' }` here (not an error); `origin`
+ * - #3 (done): a 404 becomes `{ kind: 'no_data' }` (not an error); `origin`
  *   scope and omitted form factor (ALL) are already expressed by `CruxQuery`.
  * - #8: add `queryHistory` beside `queryCurrent`, reusing `parseMetricName`
  *   and the bin schema (history densities may be "NaN", p75s may be null).
@@ -65,7 +65,8 @@ export interface CruxCurrentRecord {
   urlNormalizationDetails?: { originalUrl: string; normalizedUrl: string };
 }
 
-export type CruxCurrentOutcome = { kind: 'record'; record: CruxCurrentRecord };
+/** `no_data`: CrUX answered 404, i.e. it publishes no data for this key. A valid finding, not an error. */
+export type CruxCurrentOutcome = { kind: 'record'; record: CruxCurrentRecord } | { kind: 'no_data' };
 
 export interface CruxClient {
   queryCurrent(query: CruxQuery): Promise<CruxCurrentOutcome>;
@@ -111,6 +112,7 @@ export function createCruxClient(http: HttpClient): CruxClient {
         signal: query.signal,
         logger: query.logger,
       });
+      if (response.status === 404) return { kind: 'no_data' };
       if (response.status < 200 || response.status >= 300) throw upstreamErrorFromStatus('crux', response.status);
 
       const parsed = CurrentResponseSchema.safeParse(response.body);
