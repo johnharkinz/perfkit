@@ -41,7 +41,11 @@ export class PerfkitError extends Error implements ErrorInfo {
   }
 }
 
-const SOURCE_LABEL: Record<ErrorSource, string> = { perfkit: 'perfkit', crux: 'CrUX API', pagespeed: 'PageSpeed Insights' };
+const SOURCE_LABEL: Record<ErrorSource, string> = {
+  perfkit: 'perfkit',
+  crux: 'CrUX API',
+  pagespeed: 'PageSpeed Insights',
+};
 
 /** Classifies a non-success upstream HTTP status. Retries and timeouts are layered on in the HTTP client. */
 export function upstreamErrorFromStatus(source: ErrorSource, status: number): PerfkitError {

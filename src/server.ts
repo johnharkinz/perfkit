@@ -22,7 +22,12 @@ export function createServer(deps: AppDeps): McpServer {
 function registerTool(server: McpServer, deps: AppDeps, tool: ToolDefinition): void {
   server.registerTool(
     tool.name,
-    { title: tool.title, description: tool.description, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema },
+    {
+      title: tool.title,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      outputSchema: tool.outputSchema,
+    },
     async (args, mcpCtx) => {
       const startedAt = deps.now();
       const correlationId = deps.newCorrelationId();

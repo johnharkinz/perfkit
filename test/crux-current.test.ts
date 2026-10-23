@@ -10,7 +10,9 @@ afterEach(async () => {
 
 describe('performance_crux_current', () => {
   it('is listed with input and output schemas and a description explaining field vs. lab data', async () => {
-    perfkit = await connectPerfkit({ fetch: fakeFetch(() => ({ status: 200, body: fixture('crux/current-url-phone.json') })) });
+    perfkit = await connectPerfkit({
+      fetch: fakeFetch(() => ({ status: 200, body: fixture('crux/current-url-phone.json') })),
+    });
 
     const { tools } = await perfkit.client.listTools();
     const tool = tools.find((t) => t.name === 'performance_crux_current');
@@ -112,7 +114,9 @@ describe('performance_crux_current', () => {
   });
 
   it('returns the same JSON as a text block', async () => {
-    perfkit = await connectPerfkit({ fetch: fakeFetch(() => ({ status: 200, body: fixture('crux/current-url-phone.json') })) });
+    perfkit = await connectPerfkit({
+      fetch: fakeFetch(() => ({ status: 200, body: fixture('crux/current-url-phone.json') })),
+    });
 
     const res = await perfkit.client.callTool({
       name: 'performance_crux_current',
@@ -245,7 +249,10 @@ describe('performance_crux_current', () => {
     });
 
     expect(res.isError).toBe(true);
-    expect(res.structuredContent).toMatchObject({ status: 'error', error: { code: 'invalid_input', source: 'perfkit' } });
+    expect(res.structuredContent).toMatchObject({
+      status: 'error',
+      error: { code: 'invalid_input', source: 'perfkit' },
+    });
     expect(fetch.calls).toHaveLength(0);
   });
 });

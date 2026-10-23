@@ -13,10 +13,7 @@ import type { ToolDefinition } from './tool.js';
 
 const InputSchema = z.object({
   url: z.string().describe('Public http(s) URL to look up, e.g. "https://example.com/page".'),
-  device: z
-    .enum(['PHONE', 'DESKTOP'])
-    .default('PHONE')
-    .describe('Device class of the Chrome users to report on.'),
+  device: z.enum(['PHONE', 'DESKTOP']).default('PHONE').describe('Device class of the Chrome users to report on.'),
 });
 type Input = z.infer<typeof InputSchema>;
 

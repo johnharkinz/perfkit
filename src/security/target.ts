@@ -22,7 +22,10 @@ export interface Target {
 export type TargetResult = { ok: true; target: Target } | { ok: false; error: PerfkitError };
 
 function invalid(message: string): TargetResult {
-  return { ok: false, error: new PerfkitError({ code: 'invalid_input', source: 'perfkit', retryable: false, message }) };
+  return {
+    ok: false,
+    error: new PerfkitError({ code: 'invalid_input', source: 'perfkit', retryable: false, message }),
+  };
 }
 
 export function parseTarget(raw: string): TargetResult {

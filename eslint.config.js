@@ -14,9 +14,10 @@ export default tseslint.config(
     },
   },
   {
-    // The core must stay transport-independent: only the tool layer, the
-    // server module and the entry point may import the MCP SDK.
-    files: ['src/domain/**', 'src/providers/**', 'src/infra/**', 'src/security/**', 'src/core/**'],
+    // The core (including tool definitions) must stay transport-independent:
+    // only the MCP adapter and stdio startup may import the MCP SDK.
+    files: ['src/**/*.ts'],
+    ignores: ['src/server.ts', 'src/start.ts', 'src/main.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
