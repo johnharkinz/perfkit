@@ -12,7 +12,9 @@
  * Savings are reported only as Lighthouse supplied them: `ms`/`bytes` from an
  * opportunity's `overallSavings*` or an insight's `numericValue` (insights
  * express their estimate that way), and `metrics` from `metricSavings`. A
- * diagnostic's `numericValue` is a measurement, not a saving.
+ * diagnostic's `numericValue` is a measurement, not a saving. Zero estimates
+ * are dropped (an audit with only zeros has no `savings`), so they rank
+ * exactly like an absent estimate.
  */
 import type { PsiAudit, PsiAuditRef } from '../providers/pagespeed.js';
 import type { Audit } from './response.js';
@@ -44,12 +46,16 @@ const NOT_FAILING_MODES = new Set(['notApplicable', 'manual', 'error']);
 
 type Savings = NonNullable<Audit['savings']>;
 
+/** A zero estimate is no saving: PSI sends many (`{LCP: 0}`), and they must not read or rank as savings. */
+const nonZero = (n: number | undefined): number | undefined => (n === 0 ? undefined : n);
+
 function savingsOf(audit: PsiAudit): Savings | undefined {
   const insight = audit.id.endsWith('-insight') && audit.scoreDisplayMode === 'metricSavings';
   const fromValue = (unit: string) => (insight && audit.numericUnit === unit ? audit.numericValue : undefined);
-  const ms = audit.details?.overallSavingsMs ?? fromValue('millisecond');
-  const bytes = audit.details?.overallSavingsBytes ?? fromValue('byte');
-  const metrics = audit.metricSavings && Object.keys(audit.metricSavings).length > 0 ? audit.metricSavings : undefined;
+  const ms = nonZero(audit.details?.overallSavingsMs ?? fromValue('millisecond'));
+  const bytes = nonZero(audit.details?.overallSavingsBytes ?? fromValue('byte'));
+  const nonZeroMetrics = Object.entries(audit.metricSavings ?? {}).filter(([, v]) => v !== 0);
+  const metrics = nonZeroMetrics.length > 0 ? Object.fromEntries(nonZeroMetrics) : undefined;
   if (ms === undefined && bytes === undefined && metrics === undefined) return undefined;
   return {
     ...(ms === undefined ? {} : { ms }),

@@ -148,11 +148,12 @@ describe('performance_pagespeed', () => {
         'bootup-time', // TBT 700 ms
         'mainthread-work-breakdown', // TBT 600 ms
         'unused-css-rules', // 450 ms
-        'unused-javascript', // 0 ms, 337 KB
-        'font-display-insight', // 0 ms
-        'image-delivery-insight', // 0 ms
-        'network-dependency-tree-insight', // 0 ms
-        // forced-reflow-insight (no estimate) and unsized-images (CLS only) lose their slots to the pinned audits
+        'unused-javascript', // 337 KB (its 0 ms estimates are dropped)
+        // No estimate above zero from here on, and equal weights, so Lighthouse's order decides:
+        'font-display-insight',
+        'forced-reflow-insight',
+        'image-delivery-insight',
+        // network-dependency-tree-insight and unsized-images lose their slots to the pinned audits
         'lcp-breakdown-insight', // passing, but always included
         'cls-culprits-insight', // passing, but always included
       ]);
@@ -165,10 +166,37 @@ describe('performance_pagespeed', () => {
       // Lighthouse 13 insights carry their estimate in metricSavings only (the "Est savings" text is not parsed).
       expect(byId['render-blocking-insight']?.savings).toEqual({ metrics: { LCP: 2250, FCP: 2250 } });
       expect(byId['unused-css-rules']?.savings).toEqual({ ms: 450, bytes: 133945, metrics: { LCP: 450, FCP: 450 } });
-      expect(byId['unused-javascript']?.savings).toEqual({ ms: 0, bytes: 337465, metrics: { LCP: 0, FCP: 0 } });
       // A diagnostic's numericValue is a measurement (3.1 s of main-thread work), not a saving.
       expect(byId['mainthread-work-breakdown']?.savings).toEqual({ metrics: { TBT: 600 } });
-      expect(byId['network-dependency-tree-insight']?.savings).toEqual({ metrics: { LCP: 0 } });
+    });
+
+    it('drops zero savings estimates, and omits savings when none is above zero', async () => {
+      const audits = auditsOf(await call(psi())());
+      const byId = Object.fromEntries(audits.map((a) => [a.id, a]));
+
+      // PSI sends overallSavingsMs 0 and metricSavings {LCP: 0, FCP: 0} here: only the byte saving is real.
+      expect(byId['unused-javascript']?.savings).toEqual({ bytes: 337465 });
+      // metricSavings {LCP: 0, FCP: 0}, {FCP: 0, INP: 0} and {LCP: 0}: nothing to report.
+      for (const id of ['image-delivery-insight', 'font-display-insight', 'lcp-breakdown-insight']) {
+        expect(byId[id]).toBeDefined();
+        expect(byId[id]).not.toHaveProperty('savings');
+      }
+    });
+
+    it('ranks an audit whose estimates are all zero exactly like one with no estimate', async () => {
+      const withoutZeros = psi();
+      for (const audit of Object.values(withoutZeros.lighthouseResult.audits)) {
+        const metricSavings = audit['metricSavings'] as Record<string, number> | undefined;
+        if (metricSavings && Object.values(metricSavings).every((v) => v === 0)) delete audit['metricSavings'];
+        const details = audit['details'] as Record<string, unknown> | undefined;
+        if (details?.['overallSavingsMs'] === 0) delete details['overallSavingsMs'];
+        if (details?.['overallSavingsBytes'] === 0) delete details['overallSavingsBytes'];
+      }
+
+      const ids = (res: { structuredContent?: unknown }) => auditsOf(res).map((a) => a.id);
+      const asSent = ids(await call(psi())());
+      await perfkit?.close();
+      expect(asSent).toEqual(ids(await call(withoutZeros)()));
     });
 
     it('gives each audit its id, title, displayValue, score and a truncated description', async () => {
