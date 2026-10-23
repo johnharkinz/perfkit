@@ -63,13 +63,20 @@ export const UPSTREAM_ENV: Readonly<Record<UpstreamSource, { timeoutMs: string; 
 const MAX_TIMEOUT_MS = 600_000;
 const MAX_RETRIES = 10;
 
-/** Reads an optional integer variable in [min, max]; the error names the variable, never its value. */
-function intVar(env: Env, name: string, fallback: number, min: number, max: number): number {
+/**
+ * Reads an optional whole-number variable, `fallback` when unset. With
+ * `bounds` it must lie in min..max; without, any non-negative value is
+ * accepted. The error names the variable, never its value.
+ */
+function intVar(env: Env, name: string, fallback: number, bounds?: { min: number; max: number }): number {
   const raw = env[name]?.trim();
   if (raw === undefined || raw === '') return fallback;
   const value = /^\d+$/.test(raw) ? Number(raw) : NaN;
+  const { min, max } = bounds ?? { min: 0, max: Number.MAX_SAFE_INTEGER };
   if (!Number.isSafeInteger(value) || value < min || value > max) {
-    throw new ConfigError(`${name} must be a whole number from ${min} to ${max}.`);
+    throw new ConfigError(
+      bounds ? `${name} must be a whole number from ${min} to ${max}.` : `${name} must be a non-negative whole number.`,
+    );
   }
   return value;
 }
@@ -78,8 +85,8 @@ function upstreamPolicy(env: Env, source: UpstreamSource): UpstreamPolicy {
   const names = UPSTREAM_ENV[source];
   const defaults = UPSTREAM_DEFAULTS[source];
   return {
-    timeoutMs: intVar(env, names.timeoutMs, defaults.timeoutMs, 1, MAX_TIMEOUT_MS),
-    retries: intVar(env, names.retries, defaults.retries, 0, MAX_RETRIES),
+    timeoutMs: intVar(env, names.timeoutMs, defaults.timeoutMs, { min: 1, max: MAX_TIMEOUT_MS }),
+    retries: intVar(env, names.retries, defaults.retries, { min: 0, max: MAX_RETRIES }),
   };
 }
 
@@ -96,16 +103,8 @@ export function loadConfig(env: Env): Config {
     dnsCheck: parseFlag(env, 'PERFKIT_DNS_CHECK'),
     upstream: { pagespeed: upstreamPolicy(env, 'pagespeed'), crux: upstreamPolicy(env, 'crux') },
     cache: loadCacheConfig(env),
-    overviewBudgetMs: intVar(env, OVERVIEW_BUDGET_ENV, OVERVIEW_BUDGET_DEFAULT_MS, 1, MAX_TIMEOUT_MS),
+    overviewBudgetMs: intVar(env, OVERVIEW_BUDGET_ENV, OVERVIEW_BUDGET_DEFAULT_MS, { min: 1, max: MAX_TIMEOUT_MS }),
   };
-}
-
-/** A non-negative integer from `env[name]`, or `fallback` when unset. 0 disables. */
-function nonNegativeInt(env: Env, name: string, fallback: number): number {
-  const raw = env[name]?.trim();
-  if (raw === undefined || raw === '') return fallback;
-  if (!/^\d+$/.test(raw)) throw new ConfigError(`${name} must be a non-negative whole number.`);
-  return Number(raw);
 }
 
 function loadCacheConfig(env: Env): CacheConfig {
@@ -114,9 +113,9 @@ function loadCacheConfig(env: Env): CacheConfig {
     CacheKind,
     { env: string; seconds: number },
   ][]) {
-    ttlMs[kind] = nonNegativeInt(env, name, seconds) * 1000;
+    ttlMs[kind] = intVar(env, name, seconds) * 1000; // 0 disables
   }
-  return { ttlMs, maxEntries: nonNegativeInt(env, CACHE_MAX_ENTRIES_ENV, CACHE_MAX_ENTRIES_DEFAULT) };
+  return { ttlMs, maxEntries: intVar(env, CACHE_MAX_ENTRIES_ENV, CACHE_MAX_ENTRIES_DEFAULT) };
 }
 
 /** Unset, "", "0" or "false" → false; "1" or "true" → true; anything else is a ConfigError. */
