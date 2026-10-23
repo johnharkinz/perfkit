@@ -257,6 +257,10 @@ export const AuditSchema = z.object({
 export type Audit = z.infer<typeof AuditSchema>;
 
 export const LAB_CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'] as const;
+
+/** The PSI strategy a lab result was run with, as shown in results. */
+export const LAB_STRATEGIES = ['mobile', 'desktop'] as const;
+export type LabStrategy = (typeof LAB_STRATEGIES)[number];
 export type LabCategory = (typeof LAB_CATEGORIES)[number];
 
 export const RunMetadataSchema = z.object({
@@ -275,7 +279,7 @@ export const LabResultSchema = z.object({
   ...baseResultShape,
   provider: z.literal('pagespeed'),
   dataType: z.literal('lab'),
-  strategy: z.enum(['mobile', 'desktop']).describe('The PSI strategy the device mapped to.'),
+  strategy: z.enum(LAB_STRATEGIES).describe('The PSI strategy the device mapped to.'),
   performanceScore: z.number().nullable().optional().describe('Lighthouse performance score, 0–100 (not a rating).'),
   labMetrics: LabMetricsSchema.optional(),
   audits: z.array(AuditSchema).optional(),
@@ -293,7 +297,7 @@ export const LabResultSchema = z.object({
 });
 export type LabResult = z.infer<typeof LabResultSchema>;
 
-export function errorLabResult(ctx: ResultContext & { strategy: 'mobile' | 'desktop' }, error: ErrorInfo): LabResult {
+export function errorLabResult(ctx: ResultContext & { strategy: LabStrategy }, error: ErrorInfo): LabResult {
   return {
     schemaVersion: SCHEMA_VERSION,
     requestedUrl: ctx.requestedUrl,

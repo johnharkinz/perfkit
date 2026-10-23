@@ -15,16 +15,17 @@
  */
 import * as z from 'zod';
 import { PerfkitError, upstreamErrorFromStatus } from '../domain/errors.js';
+import type { LabStrategy } from '../domain/response.js';
 import type { HttpClient } from '../infra/http.js';
 import type { Logger } from '../infra/logger.js';
 
-export type PsiStrategy = 'MOBILE' | 'DESKTOP';
 export type PsiCategory = 'PERFORMANCE' | 'ACCESSIBILITY' | 'BEST_PRACTICES' | 'SEO';
 
 export interface PagespeedQuery {
   /** The URL to test, already validated. */
   url: string;
-  strategy: PsiStrategy;
+  /** Sent as PSI's MOBILE or DESKTOP strategy. */
+  strategy: LabStrategy;
   /** PERFORMANCE is always sent, whether listed or not. */
   categories: readonly PsiCategory[];
   signal?: AbortSignal;
@@ -170,7 +171,7 @@ export function createPagespeedClient(http: HttpClient): PagespeedClient {
       const response = await http.request({
         endpoint: 'pagespeed',
         method: 'GET',
-        query: { url: query.url, strategy: query.strategy, category: categories },
+        query: { url: query.url, strategy: query.strategy.toUpperCase(), category: categories },
         signal: query.signal,
         logger: query.logger,
       });

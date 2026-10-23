@@ -2,12 +2,20 @@
  * performance_pagespeed: lab data from one PageSpeed Insights (Lighthouse) run.
  */
 import * as z from 'zod';
+import type { ErrorInfo } from '../domain/errors.js';
 import { normalizePagespeed } from '../domain/normalize-lab.js';
-import { errorLabResult, LAB_CATEGORIES, LabResultSchema, type LabResult } from '../domain/response.js';
+import {
+  errorLabResult,
+  LAB_CATEGORIES,
+  LabResultSchema,
+  type LabResult,
+  type LabStrategy,
+  type ResultContext,
+} from '../domain/response.js';
 import { withCacheFields } from '../infra/cache.js';
-import type { PsiCategory, PsiStrategy } from '../providers/pagespeed.js';
-import { displayForInvalid, type Target } from '../security/target.js';
-import type { ToolContext, ToolDefinition } from './tool.js';
+import type { PsiCategory } from '../providers/pagespeed.js';
+import type { Target } from '../security/target.js';
+import { inputResultContext, targetResultContext, type ToolContext, type ToolDefinition } from './tool.js';
 
 const InputSchema = z.object({
   url: z.string().describe('Public http(s) URL to test, e.g. "https://example.com/page".'),
@@ -22,15 +30,25 @@ const InputSchema = z.object({
     .describe('Lighthouse categories. Performance always runs; accessibility, best-practices and seo add scores only.'),
 });
 type Input = z.infer<typeof InputSchema>;
+export type LabDevice = Input['device'];
 
-const STRATEGY = { PHONE: 'mobile', DESKTOP: 'desktop' } as const;
-const PSI_STRATEGY: Record<Input['device'], PsiStrategy> = { PHONE: 'MOBILE', DESKTOP: 'DESKTOP' };
+/** The one device → PSI strategy map. */
+export const PSI_STRATEGY: Record<LabDevice, LabStrategy> = { PHONE: 'mobile', DESKTOP: 'desktop' };
 const PSI_CATEGORY: Record<Input['categories'][number], PsiCategory> = {
   performance: 'PERFORMANCE',
   accessibility: 'ACCESSIBILITY',
   'best-practices': 'BEST_PRACTICES',
   seo: 'SEO',
 };
+
+/** A lab error result, with the strategy the device maps to. */
+export function errorLabResultFor(context: ResultContext & { device: LabDevice }, error: ErrorInfo): LabResult {
+  return errorLabResult({ ...context, strategy: PSI_STRATEGY[context.device] }, error);
+}
+
+function errorResult(args: Input, error: ErrorInfo, ctx: ToolContext): LabResult {
+  return errorLabResultFor({ ...inputResultContext(args, ctx), device: args.device }, error);
+}
 
 export const pagespeedTool: ToolDefinition<typeof InputSchema, typeof LabResultSchema> = {
   name: 'performance_pagespeed',
@@ -45,25 +63,12 @@ export const pagespeedTool: ToolDefinition<typeof InputSchema, typeof LabResultS
   outputSchema: LabResultSchema,
 
   async run(args: Input, ctx): Promise<LabResult> {
-    const base = { device: args.device, strategy: STRATEGY[args.device], collectedAt: ctx.startedAt.toISOString() };
     const parsed = await ctx.deps.targets.validate(args.url);
-    if (!parsed.ok) {
-      return errorLabResult({ ...base, requestedUrl: displayForInvalid(args.url) }, parsed.error.toInfo());
-    }
+    if (!parsed.ok) return errorResult(args, parsed.error.toInfo(), ctx);
     return pagespeedFor(parsed.target, args, ctx);
   },
 
-  errorResult(args, error, ctx) {
-    return errorLabResult(
-      {
-        requestedUrl: displayForInvalid(args.url),
-        device: args.device,
-        strategy: STRATEGY[args.device],
-        collectedAt: ctx.startedAt.toISOString(),
-      },
-      error,
-    );
-  },
+  errorResult,
 };
 
 /**
@@ -75,7 +80,7 @@ export async function pagespeedFor(
   args: Pick<Input, 'device' | 'categories'>,
   ctx: ToolContext,
 ): Promise<LabResult> {
-  const base = { device: args.device, strategy: STRATEGY[args.device], collectedAt: ctx.startedAt.toISOString() };
+  const strategy = PSI_STRATEGY[args.device];
   // Performance always runs, so ['seo'] and ['performance', 'seo'] are the same PSI request.
   const categories = [...new Set<Input['categories'][number]>(['performance', ...args.categories])];
   // The provider throws on every failure, so errors are never cached.
@@ -86,11 +91,17 @@ export async function pagespeedFor(
     load: () =>
       ctx.deps.pagespeed.run({
         url: target.url,
-        strategy: PSI_STRATEGY[args.device],
+        strategy,
         categories: categories.map((c) => PSI_CATEGORY[c]),
         signal: ctx.signal,
         logger: ctx.logger,
       }),
   });
-  return withCacheFields(normalizePagespeed(lookup.value, { ...base, target, categories: args.categories }), lookup);
+  const lab = normalizePagespeed(lookup.value, {
+    ...targetResultContext(target, args.device, ctx),
+    target,
+    strategy,
+    categories: args.categories,
+  });
+  return withCacheFields(lab, lookup);
 }
