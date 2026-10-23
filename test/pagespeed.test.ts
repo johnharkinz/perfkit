@@ -480,4 +480,105 @@ describe('performance_pagespeed', () => {
     expect(content).toHaveLength(1);
     expect(JSON.parse(content[0]?.text ?? '')).toEqual(res.structuredContent);
   });
+
+  it('redacts sensitive parameters in the finalUrl PSI reports and in its run warnings', async () => {
+    type Lhr = { lighthouseResult: Record<string, unknown> };
+    const body = fixture<Lhr>('psi/runpagespeed-mobile.json');
+    const final = 'https://developer.chrome.com/?session=ses-456';
+    Object.assign(body.lighthouseResult, {
+      finalDisplayedUrl: final,
+      mainDocumentUrl: final,
+      runWarnings: [`Your test URL (https://chrome.dev/?token=tok-123) was redirected to ${final}. Try it directly.`],
+    });
+    perfkit = await connectPerfkit({ fetch: fakeFetch(() => ({ status: 200, body })) });
+
+    const res = await perfkit.client.callTool({
+      name: 'performance_pagespeed',
+      arguments: { url: 'https://chrome.dev/?token=tok-123' },
+    });
+
+    const out = res.structuredContent as { finalUrl: string; warnings: string[]; run: { runWarnings: string[] } };
+    expect(out.finalUrl).toBe('https://developer.chrome.com/?session=[REDACTED]');
+    expect(out.run.runWarnings).toEqual([
+      'Your test URL (https://chrome.dev/?token=[REDACTED]) was redirected to https://developer.chrome.com/?session=[REDACTED]. Try it directly.',
+    ]);
+    const text = JSON.stringify(res) + (perfkit.stderr.text ?? '');
+    expect(text).not.toContain('tok-123');
+    expect(text).not.toContain('ses-456');
+  });
+
+  it('serves a repeat call from the cache, keyed on device and categories', async () => {
+    const fetch = psiOk();
+    const pk = await connectPerfkit({ fetch });
+    perfkit = pk;
+    const call = (args: Record<string, unknown>) =>
+      pk.client.callTool({
+        name: 'performance_pagespeed',
+        arguments: { url: 'https://developer.chrome.com/', ...args },
+      });
+
+    const first = await call({});
+    pk.clock.advance(60_000);
+    const second = await call({ categories: ['performance'] });
+
+    expect(fetch.calls).toHaveLength(1);
+    expect(first.structuredContent).toMatchObject({ cached: false });
+    expect(second.structuredContent).toMatchObject({
+      cached: true,
+      cachedAt: '2026-10-23T12:00:00.000Z',
+      performanceScore: 62,
+    });
+
+    await call({ device: 'DESKTOP' });
+    await call({ categories: ['performance', 'seo'] });
+    expect(fetch.calls).toHaveLength(3);
+  });
+
+  it('does not cache PSI errors', async () => {
+    let n = 0;
+    const fetch = fakeFetch(() =>
+      n++ === 0
+        ? {
+            status: 400,
+            body: {
+              error: {
+                code: 400,
+                message: 'Lighthouse returned error: DNS_FAILURE. DNS servers could not resolve the provided domain.',
+              },
+            },
+          }
+        : { status: 200, body: fixture('psi/runpagespeed-mobile.json') },
+    );
+    perfkit = await connectPerfkit({ fetch });
+
+    const first = await perfkit.client.callTool({
+      name: 'performance_pagespeed',
+      arguments: { url: 'https://developer.chrome.com/' },
+    });
+    const second = await perfkit.client.callTool({
+      name: 'performance_pagespeed',
+      arguments: { url: 'https://developer.chrome.com/' },
+    });
+
+    expect(first.isError).toBe(true);
+    expect(second.structuredContent).toMatchObject({ status: 'ok', cached: false });
+    expect(fetch.calls).toHaveLength(2);
+  });
+
+  it('applies the opt-in DNS check before calling PSI', async () => {
+    const fetch = psiOk();
+    perfkit = await connectPerfkit({
+      fetch,
+      env: { GOOGLE_API_KEY: TEST_API_KEY, PERFKIT_DNS_CHECK: '1' },
+      lookup: async () => ['10.0.0.5'],
+    });
+
+    const res = await perfkit.client.callTool({
+      name: 'performance_pagespeed',
+      arguments: { url: 'https://internal-app.example.com/' },
+    });
+
+    expect(res.structuredContent).toMatchObject({ status: 'error', error: { code: 'invalid_input' } });
+    expect(fetch.calls).toHaveLength(0);
+  });
 });

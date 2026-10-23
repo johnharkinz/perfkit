@@ -13,12 +13,15 @@ import { createLogger, type Logger } from './infra/logger.js';
 import { createCruxClient, type CruxClient } from './providers/crux.js';
 import { createPagespeedClient, type PagespeedClient } from './providers/pagespeed.js';
 import { createSecretScrubber } from './security/secrets.js';
+import { createTargetValidator, type HostLookup, type TargetValidator } from './security/target.js';
 
 export interface AppDeps {
   config: Config;
   logger: Logger;
   crux: CruxClient;
   pagespeed: PagespeedClient;
+  /** Validates every tool's `url` input (ADR 0001); tools must use it before any upstream call. */
+  targets: TargetValidator;
   /** Shared provider-outcome cache; tools wrap provider calls in `cache.getOrLoad`. */
   cache: ProviderCache;
   now: () => Date;
@@ -32,6 +35,8 @@ export interface AppIo {
   stderr: Writable;
   now?: () => Date;
   newCorrelationId?: () => string;
+  /** DNS resolver for PERFKIT_DNS_CHECK (defaults to the system resolver). */
+  lookup?: HostLookup;
 }
 
 /** Throws ConfigError (with a message safe to print) when configuration is invalid. */
@@ -45,6 +50,7 @@ export function createApp(io: AppIo): AppDeps {
     logger,
     crux: createCruxClient(http),
     pagespeed: createPagespeedClient(http),
+    targets: createTargetValidator({ dnsCheck: config.dnsCheck, ...(io.lookup ? { lookup: io.lookup } : {}) }),
     cache: createProviderCache(config.cache, now),
     now,
     newCorrelationId: io.newCorrelationId ?? randomUUID,

@@ -10,6 +10,8 @@ import type { CacheConfig, CacheKind } from './cache.js';
 
 export interface Config {
   readonly googleApiKey: string;
+  /** PERFKIT_DNS_CHECK=1: also reject hosts that resolve to non-public addresses (ADR 0001). Off by default. */
+  readonly dnsCheck: boolean;
   readonly cache: CacheConfig;
 }
 
@@ -39,7 +41,7 @@ export function loadConfig(env: Env): Config {
         'Chrome UX Report API enabled. Set GOOGLE_API_KEY in the MCP server environment and restart.',
     );
   }
-  return { googleApiKey, cache: loadCacheConfig(env) };
+  return { googleApiKey, dnsCheck: parseFlag(env, 'PERFKIT_DNS_CHECK'), cache: loadCacheConfig(env) };
 }
 
 /** A non-negative integer from `env[name]`, or `fallback` when unset. 0 disables. */
@@ -59,4 +61,12 @@ function loadCacheConfig(env: Env): CacheConfig {
     ttlMs[kind] = nonNegativeInt(env, name, seconds) * 1000;
   }
   return { ttlMs, maxEntries: nonNegativeInt(env, CACHE_MAX_ENTRIES_ENV, CACHE_MAX_ENTRIES_DEFAULT) };
+}
+
+/** Unset, "", "0" or "false" → false; "1" or "true" → true; anything else is a ConfigError. */
+function parseFlag(env: Env, name: string): boolean {
+  const value = env[name]?.trim().toLowerCase();
+  if (value === undefined || value === '' || value === '0' || value === 'false') return false;
+  if (value === '1' || value === 'true') return true;
+  throw new ConfigError(`${name} must be 1 (on) or 0 (off).`);
 }

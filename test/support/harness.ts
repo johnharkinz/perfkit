@@ -3,6 +3,7 @@ import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { createApp } from '../../src/app.js';
 import { createServer } from '../../src/server.js';
+import type { HostLookup } from '../../src/security/target.js';
 
 export const TEST_API_KEY = 'AIzaTEST-not-a-real-key-0123456789';
 
@@ -49,12 +50,18 @@ export interface Perfkit {
 }
 
 /** Connects an in-memory MCP client to the real perfkit server, with an injected fetch. */
-export async function connectPerfkit(options: { fetch: typeof fetch; env?: Record<string, string> }): Promise<Perfkit> {
+export async function connectPerfkit(options: {
+  fetch: typeof fetch;
+  env?: Record<string, string>;
+  /** DNS resolver used when PERFKIT_DNS_CHECK=1 (defaults to the real resolver). */
+  lookup?: HostLookup;
+}): Promise<Perfkit> {
   const stderr = new CapturedStream();
   const clock = testClock();
   const app = createApp({
     env: options.env ?? { GOOGLE_API_KEY: TEST_API_KEY },
     fetch: options.fetch,
+    ...(options.lookup ? { lookup: options.lookup } : {}),
     stderr,
     now: clock.now,
   });

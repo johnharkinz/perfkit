@@ -13,7 +13,7 @@ import {
   type LabResult,
   type ResultContext,
 } from './response.js';
-import { displayForInvalid, parseTarget, type Target } from '../security/target.js';
+import { parseTarget, redactUrl, type Target } from '../security/target.js';
 
 export interface LabContext extends Omit<ResultContext, 'requestedUrl'> {
   target: Target;
@@ -42,11 +42,14 @@ function dropUndefined<T extends Record<string, unknown>>(obj: T): { [K in keyof
   };
 }
 
-/** Lighthouse warnings quote URLs verbatim; show them in redacted display form (trailing punctuation kept). */
-function redactUrls(text: string): string {
-  return text.replace(/https?:\/\/[^\s)"']+/g, (match) => {
-    const [, url = match, tail = ''] = /^(.*?)([.,;]*)$/.exec(match) ?? [];
-    return `${displayForInvalid(url)}${tail}`;
+/**
+ * Lighthouse warnings quote URLs inside prose ("(https://a/?token=x) was redirected to https://b/."). Redact
+ * each URL on its own so `redactUrl` does not swallow the surrounding punctuation along with a parameter value.
+ */
+function redactUrlsInText(text: string): string {
+  return text.replace(/https?:\/\/[^\s)"'<>]+/gi, (match) => {
+    const [, url = match, tail = ''] = /^(.*?)([.,;:!?]*)$/.exec(match) ?? [];
+    return `${redactUrl(url)}${tail}`;
   });
 }
 
@@ -90,10 +93,10 @@ export function normalizePagespeed(record: PagespeedRecord, ctx: LabContext): La
   const warnings: string[] = [];
   const shownFinal = lh.finalDisplayedUrl ?? lh.mainDocumentUrl ?? lh.finalUrl;
   const testedFinal = lh.mainDocumentUrl ?? shownFinal;
-  const finalUrl = shownFinal === undefined ? undefined : displayForInvalid(shownFinal);
+  const finalUrl = shownFinal === undefined ? undefined : redactUrl(shownFinal);
   if (testedFinal !== undefined && comparable(testedFinal) !== ctx.target.url) {
     warnings.push(
-      `PageSpeed Insights tested ${displayForInvalid(testedFinal)}, not the requested ${ctx.target.display} ` +
+      `PageSpeed Insights tested ${redactUrl(testedFinal)}, not the requested ${ctx.target.display} ` +
         '(redirect); this lab data describes the final URL.',
     );
   }
@@ -127,7 +130,7 @@ export function normalizePagespeed(record: PagespeedRecord, ctx: LabContext): La
         benchmarkIndex: lh.environment?.benchmarkIndex,
         totalTimeMs: lh.timing?.total,
       }),
-      runWarnings: lh.runWarnings.map((w) => truncate(redactUrls(w), MAX_RUN_WARNING)),
+      runWarnings: lh.runWarnings.map((w) => truncate(redactUrlsInText(w), MAX_RUN_WARNING)),
     },
   };
 }

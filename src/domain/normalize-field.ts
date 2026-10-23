@@ -57,7 +57,7 @@ function keyFor(
   redact: (u: string) => string,
 ): CruxKey {
   const key: CruxKey = {};
-  if (target !== undefined) key[scope] = scope === 'url' ? redact(target) : target;
+  if (target !== undefined) key[scope] = redact(target);
   if (formFactor !== undefined && FORM_FACTORS.includes(formFactor)) key.formFactor = formFactor as CruxFormFactor;
   return key;
 }
