@@ -37,9 +37,8 @@ export const cruxCurrentTool: ToolDefinition<typeof InputSchema, typeof FieldCur
   description:
     'Current field data from the Chrome UX Report: how real Chrome users experienced a URL (scope "url") or its ' +
     'whole origin (scope "origin") over the latest 28-day window. Returns p75 INP, LCP, CLS (Core Web Vitals), ' +
-    'FCP and TTFB (supporting), each rated, with histograms and dates. status "no_data" means CrUX has too little ' +
-    'traffic for the target; it is a valid finding. This is field data, not lab data; for one simulated ' +
-    'Lighthouse run use performance_pagespeed.',
+    'FCP and TTFB (supporting), each rated, with histograms and dates. status "no_data" (too little traffic) is a ' +
+    'valid finding. This is field data, not lab data; for one simulated Lighthouse run use performance_pagespeed.',
   inputSchema: InputSchema,
   outputSchema: FieldCurrentResultSchema,
 

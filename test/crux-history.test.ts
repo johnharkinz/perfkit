@@ -29,6 +29,16 @@ describe('performance_crux_history: listing', () => {
     expect(tool?.description).toMatch(/overlapping 28-day windows/i);
     expect(tool?.description).toMatch(/weekly/i);
   });
+
+  it('says it is field data, not lab data, and points to performance_pagespeed for lab data', async () => {
+    perfkit = await connectPerfkit({ fetch: fakeFetch(() => ({ status: 500, body: {} })) });
+
+    const { tools } = await perfkit.client.listTools();
+    const description = tools.find((t) => t.name === 'performance_crux_history')?.description ?? '';
+
+    expect(description).toMatch(/field data, not lab data/i);
+    expect(description).toMatch(/performance_pagespeed/);
+  });
 });
 
 const OVERLAP_WARNING = /overlapping 28-day windows, not independent samples/i;

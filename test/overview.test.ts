@@ -93,6 +93,26 @@ describe('performance_overview: listing', () => {
     expect(tool?.description).toMatch(/partial/);
   });
 
+  it('gives every tool a concise description that explains lab vs. field data and URL vs. origin', async () => {
+    perfkit = await connectPerfkit({ fetch: google() });
+
+    const { tools } = await perfkit.client.listTools();
+
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'performance_crux_current',
+      'performance_crux_history',
+      'performance_overview',
+      'performance_pagespeed',
+    ]);
+    for (const { name, description = '' } of tools) {
+      expect(description, name).toMatch(/lab data/i);
+      expect(description, name).toMatch(/field data/i);
+      expect(description, name).toMatch(/\bURL\b/);
+      expect(description, name).toMatch(/origin/i);
+      expect(description.length, name).toBeLessThan(600);
+    }
+  });
+
   it('rejects TABLET without calling Google', async () => {
     const fetch = google();
     perfkit = await connectPerfkit({ fetch });

@@ -36,9 +36,10 @@ export const pagespeedTool: ToolDefinition<typeof InputSchema, typeof LabResultS
   name: 'performance_pagespeed',
   title: 'PageSpeed Insights lab data',
   description:
-    'Lab data for a URL from PageSpeed Insights: a single simulated Lighthouse run on an emulated phone or desktop, ' +
-    'not field data from real users (for that use performance_crux_current). Returns the 0–100 performance score, ' +
-    'unrated lab FCP, LCP, CLS, TBT and Speed Index with Lighthouse’s per-metric scores, and up to 10 failing ' +
+    'Lab data from PageSpeed Insights: a single simulated Lighthouse run of one URL on an emulated phone or ' +
+    'desktop, not field data from real Chrome users. URL only: there is no origin option; for field data on a URL ' +
+    'or its whole origin use performance_crux_current or performance_crux_history. Returns the 0–100 performance ' +
+    'score, unrated lab FCP, LCP, CLS, TBT and Speed Index with Lighthouse’s per-metric scores, and up to 10 failing ' +
     'performance audits (always including the LCP breakdown and layout-shift culprits). TBT is not INP.',
   inputSchema: InputSchema,
   outputSchema: LabResultSchema,

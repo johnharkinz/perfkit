@@ -41,11 +41,11 @@ export const cruxHistoryTool: ToolDefinition<typeof InputSchema, typeof FieldHis
   name: 'performance_crux_history',
   title: 'CrUX field history',
   description:
-    'Field history from the Chrome UX Report: up to 40 points of p75 INP, LCP, CLS (Core Web Vitals), FCP and ' +
-    'TTFB (supporting) for a URL (scope "url") or its whole origin (scope "origin"), each rated, with real start ' +
-    'and end dates. Each point is a 28-day window, updated about weekly, so consecutive points are overlapping ' +
-    '28-day windows, not independent samples. Missing weeks are null, never zero. status "no_data" means CrUX ' +
-    'has too little traffic for the target; it is a valid finding. For the latest window with histograms use ' +
+    'Field history from the Chrome UX Report for a URL (scope "url") or its whole origin (scope "origin"): up to ' +
+    '40 rated p75 points of INP, LCP, CLS (Core Web Vitals), FCP and TTFB (supporting), with real dates. Points ' +
+    'are overlapping 28-day windows updated weekly, not independent samples; missing weeks are null, never zero. ' +
+    'status "no_data" (too little traffic) is a valid finding. This is field data, not lab data; for one ' +
+    'simulated Lighthouse run use performance_pagespeed. For the latest window with histograms use ' +
     'performance_crux_current.',
   inputSchema: InputSchema,
   outputSchema: FieldHistoryResultSchema,

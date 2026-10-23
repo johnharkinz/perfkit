@@ -27,6 +27,18 @@ describe('performance_pagespeed', () => {
     expect((tool?.description ?? '').length).toBeLessThan(600);
   });
 
+  it('says it tests a URL only, with no origin option, and points to the CrUX tools for origin field data', async () => {
+    perfkit = await connectPerfkit({ fetch: psiOk() });
+
+    const { tools } = await perfkit.client.listTools();
+    const description = tools.find((t) => t.name === 'performance_pagespeed')?.description ?? '';
+
+    expect(description).toMatch(/URL only/);
+    expect(description).toMatch(/no origin option/i);
+    expect(description).toMatch(/performance_crux_current/);
+    expect(description).toMatch(/performance_crux_history/);
+  });
+
   it('sends one PSI request with the mobile strategy and the performance category, sending the key only in a header', async () => {
     const fetch = psiOk();
     perfkit = await connectPerfkit({ fetch });

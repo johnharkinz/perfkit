@@ -26,7 +26,7 @@ Check:
 - [ ] The overall `status` is `ok`, or `partial` with the failing section named. If the lab section is an `upstream_timeout` that mentions the time budget, the field sections are still present.
 - [ ] `lab.strategy` is `mobile`, `lab.performanceScore` is 0–100, and the lab metrics have no `rating`.
 - [ ] Field metrics have p75s, ratings and a `collectionPeriod`. The URL and origin numbers are reported separately, not merged.
-- [ ] Claude's answer keeps lab data (one simulated run) and field data (28 days of real users) apart, and doesn't call the performance score a Core Web Vitals assessment.
+- [ ] Claude's answer keeps lab data (one simulated run) and field data (28 days of real Chrome users) apart, and doesn't call the performance score a Core Web Vitals assessment.
 - [ ] Claude doesn't present TBT as INP, and doesn't claim causes beyond what the audits say.
 
 ## 2. 40 weeks of phone INP

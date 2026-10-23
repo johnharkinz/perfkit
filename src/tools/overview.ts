@@ -48,11 +48,10 @@ export const overviewTool: ToolDefinition<typeof InputSchema, typeof OverviewRes
   description:
     'All the evidence for a URL in one call: lab data from one PageSpeed Insights run (section "lab"), and ' +
     'Chrome UX Report field data for the exact URL and for its whole origin, current and (unless includeHistory ' +
-    'is false) up to 40 weeks of history (sections field.url.current, field.url.history, field.origin.current, ' +
-    'field.origin.history). Lab and field data, and URL and origin scopes, are kept separate; nothing is merged ' +
-    'or substituted. Each section has its own status: "no_data" is a valid finding, not a failure. The overall ' +
-    'status is "ok" when no section failed, "partial" when some failed, "error" when all failed. If PageSpeed ' +
-    'Insights is too slow, the lab section times out and field data is still returned.',
+    'is false) up to 40 weeks of history (field.url.* and field.origin.*). Lab and field data, URL and origin, ' +
+    'are kept separate; nothing is merged or substituted. Each section has its own status; "no_data" is a valid ' +
+    'finding. Overall status: "ok" if no section failed, "partial" if some did, "error" if all did. If PSI is ' +
+    'too slow, the lab section times out and field data is still returned.',
   inputSchema: InputSchema,
   outputSchema: OverviewResultSchema,
 
