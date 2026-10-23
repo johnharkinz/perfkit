@@ -123,7 +123,6 @@ export function normalizePagespeed(record: PagespeedRecord, ctx: LabContext): La
         fetchTime: lh.fetchTime,
         analysisUTCTimestamp: record.analysisUTCTimestamp,
         formFactor: lh.configSettings?.formFactor,
-        throttlingMethod: lh.throttlingMethod,
         locale: lh.configSettings?.locale,
         userAgent: lh.userAgent,
         networkUserAgent: lh.environment?.networkUserAgent,

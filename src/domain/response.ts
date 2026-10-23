@@ -263,7 +263,6 @@ export const RunMetadataSchema = z.object({
   fetchTime: z.string().optional().describe('When Lighthouse ran (ISO 8601).'),
   analysisUTCTimestamp: z.string().optional(),
   formFactor: z.string().optional(),
-  throttlingMethod: z.string().optional(),
   locale: z.string().optional(),
   userAgent: z.string().optional(),
   networkUserAgent: z.string().optional(),

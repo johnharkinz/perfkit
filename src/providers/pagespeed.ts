@@ -88,7 +88,6 @@ const LighthouseResultSchema = z.object({
   userAgent: z.string().optional(),
   runtimeError: z.object({ code: z.string().optional(), message: z.string().optional() }).nullable().optional(),
   runWarnings: z.array(z.string()).default([]),
-  throttlingMethod: z.string().optional(),
   configSettings: z.object({ formFactor: z.string().optional(), locale: z.string().optional() }).optional(),
   environment: z.object({ networkUserAgent: z.string().optional(), benchmarkIndex: z.number().optional() }).optional(),
   timing: z.object({ total: z.number().optional() }).optional(),
