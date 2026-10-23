@@ -8,7 +8,9 @@
  * automatic origin fallback.
  */
 import * as z from 'zod';
+import { CRUX_REQUEST_METRICS } from '../domain/metrics.js';
 import { noDataCruxCurrent, normalizeCruxCurrent } from '../domain/normalize-field.js';
+import { withCacheFields } from '../infra/cache.js';
 import { errorFieldCurrentResult, FieldCurrentResultSchema, type FieldCurrentResult } from '../domain/response.js';
 import { displayForInvalid, parseTarget } from '../security/target.js';
 import type { ToolDefinition } from './tool.js';
@@ -55,16 +57,29 @@ export const cruxCurrentTool: ToolDefinition<typeof InputSchema, typeof FieldCur
       formFactor: args.device === 'ALL' ? undefined : args.device,
       redact: displayForInvalid,
     };
-    const outcome = await ctx.deps.crux.queryCurrent({
-      scope: request.scope,
-      target: request.target,
-      formFactor: request.formFactor,
-      signal: ctx.signal,
+    const lookup = await ctx.deps.cache.getOrLoad({
+      kind: 'cruxCurrent',
+      key: {
+        provider: 'crux',
+        target: request.target,
+        scope: request.scope,
+        device: args.device,
+        metrics: CRUX_REQUEST_METRICS,
+      },
       logger: ctx.logger,
+      load: () =>
+        ctx.deps.crux.queryCurrent({
+          scope: request.scope,
+          target: request.target,
+          formFactor: request.formFactor,
+          signal: ctx.signal,
+          logger: ctx.logger,
+        }),
     });
+    const outcome = lookup.value;
     // Exactly one upstream call: no_data is reported as is, never retried at origin scope.
-    if (outcome.kind === 'no_data') return noDataCruxCurrent(request);
-    return normalizeCruxCurrent(outcome.record, request);
+    if (outcome.kind === 'no_data') return withCacheFields(noDataCruxCurrent(request), lookup);
+    return withCacheFields(normalizeCruxCurrent(outcome.record, request), lookup);
   },
 
   errorResult(args, error, ctx) {
