@@ -112,3 +112,111 @@ export function errorFieldCurrentResult(ctx: ResultContext & { scope: Scope }, e
     error,
   };
 }
+
+/** The lab metrics Lighthouse reports, keyed by perfkit's short names. */
+export const LAB_METRIC_NAMES = ['FCP', 'LCP', 'CLS', 'TBT', 'SI'] as const;
+export type LabMetricName = (typeof LAB_METRIC_NAMES)[number];
+
+/** A lab metric from one simulated run. Deliberately unrated: field thresholds never apply to lab data. */
+export const LabMetricSchema = z.object({
+  value: z.number().nullable(),
+  unit: z.enum(['ms', 'unitless']),
+  score: z.number().nullable().describe("Lighthouse's own 0–1 score for this metric in this run (not a rating)."),
+  displayValue: z.string().nullable(),
+  auditId: z.string().describe('The Lighthouse audit this value was read from.'),
+});
+export type LabMetric = z.infer<typeof LabMetricSchema>;
+
+export const LabMetricsSchema = z.object(
+  Object.fromEntries(LAB_METRIC_NAMES.map((name) => [name, LabMetricSchema.optional()])) as Record<
+    LabMetricName,
+    z.ZodOptional<typeof LabMetricSchema>
+  >,
+);
+export type LabMetrics = z.infer<typeof LabMetricsSchema>;
+
+export const AuditSavingsSchema = z
+  .object({
+    ms: z.number().optional().describe('Estimated time savings in ms, as supplied by Lighthouse.'),
+    bytes: z.number().optional().describe('Estimated byte savings, as supplied by Lighthouse.'),
+    metrics: z
+      .record(z.string(), z.number())
+      .optional()
+      .describe("Lighthouse's per-metric savings estimates (ms; CLS unitless)."),
+  })
+  .describe('Present only when Google supplied a savings estimate.');
+
+export const AuditElementSchema = z.object({
+  selector: z.string().optional(),
+  nodeLabel: z.string().optional(),
+  snippet: z.string().optional(),
+  score: z.number().optional().describe('Layout shift score attributed to this element, when given.'),
+});
+
+export const AuditSchema = z.object({
+  id: z.string().describe('Lighthouse audit id, for follow-up in Lighthouse or DevTools.'),
+  title: z.string(),
+  description: z.string().describe('Truncated Lighthouse description (markdown).'),
+  displayValue: z.string().nullable(),
+  score: z.number().nullable(),
+  savings: AuditSavingsSchema.optional(),
+  elements: z
+    .array(AuditElementSchema)
+    .optional()
+    .describe('Page elements Lighthouse named (e.g. the LCP element, layout-shift culprits).'),
+});
+export type Audit = z.infer<typeof AuditSchema>;
+
+export const LAB_CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'] as const;
+export type LabCategory = (typeof LAB_CATEGORIES)[number];
+
+export const RunMetadataSchema = z.object({
+  fetchTime: z.string().optional().describe('When Lighthouse ran (ISO 8601).'),
+  analysisUTCTimestamp: z.string().optional(),
+  formFactor: z.string().optional(),
+  throttlingMethod: z.string().optional(),
+  locale: z.string().optional(),
+  userAgent: z.string().optional(),
+  networkUserAgent: z.string().optional(),
+  benchmarkIndex: z.number().optional(),
+  totalTimeMs: z.number().optional(),
+  runWarnings: z.array(z.string()),
+});
+
+export const LabResultSchema = z.object({
+  ...baseResultShape,
+  provider: z.literal('pagespeed'),
+  dataType: z.literal('lab'),
+  strategy: z.enum(['mobile', 'desktop']).describe('The PSI strategy the device mapped to.'),
+  performanceScore: z.number().nullable().optional().describe('Lighthouse performance score, 0–100 (not a rating).'),
+  labMetrics: LabMetricsSchema.optional(),
+  audits: z.array(AuditSchema).optional(),
+  categoryScores: z
+    .object({
+      accessibility: z.number().nullable().optional(),
+      'best-practices': z.number().nullable().optional(),
+      seo: z.number().nullable().optional(),
+    })
+    .optional()
+    .describe('0–100 scores for requested non-performance categories.'),
+  finalUrl: z.string().optional().describe('The URL Lighthouse finally tested (redacted).'),
+  lighthouseVersion: z.string().optional(),
+  run: RunMetadataSchema.optional(),
+});
+export type LabResult = z.infer<typeof LabResultSchema>;
+
+export function errorLabResult(ctx: ResultContext & { strategy: 'mobile' | 'desktop' }, error: ErrorInfo): LabResult {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    requestedUrl: ctx.requestedUrl,
+    provider: 'pagespeed',
+    dataType: 'lab',
+    device: ctx.device,
+    strategy: ctx.strategy,
+    status: 'error',
+    collectedAt: ctx.collectedAt,
+    cached: false,
+    warnings: [],
+    error,
+  };
+}

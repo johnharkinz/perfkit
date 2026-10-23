@@ -11,12 +11,14 @@ import { loadConfig, type Config, type Env } from './infra/config.js';
 import { createHttpClient } from './infra/http.js';
 import { createLogger, type Logger } from './infra/logger.js';
 import { createCruxClient, type CruxClient } from './providers/crux.js';
+import { createPagespeedClient, type PagespeedClient } from './providers/pagespeed.js';
 import { createSecretScrubber } from './security/secrets.js';
 
 export interface AppDeps {
   config: Config;
   logger: Logger;
   crux: CruxClient;
+  pagespeed: PagespeedClient;
   now: () => Date;
   newCorrelationId: () => string;
 }
@@ -40,6 +42,7 @@ export function createApp(io: AppIo): AppDeps {
     config,
     logger,
     crux: createCruxClient(http),
+    pagespeed: createPagespeedClient(http),
     now,
     newCorrelationId: io.newCorrelationId ?? randomUUID,
   };
