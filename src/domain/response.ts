@@ -80,13 +80,27 @@ export const CollectionPeriodSchema = z.object({
   end: z.string().describe('Last day of the 28-day window, YYYY-MM-DD (inclusive).'),
 });
 
+/** A CrUX record key: exactly one of url/origin, plus the form factor (absent for all devices). */
+export const CruxKeySchema = z.object({
+  url: z.string().optional(),
+  origin: z.string().optional(),
+  formFactor: z.enum(['PHONE', 'DESKTOP', 'TABLET']).optional().describe('Absent when device is ALL.'),
+});
+export type CruxKey = z.infer<typeof CruxKeySchema>;
+
 export const FieldCurrentResultSchema = z.object({
   ...baseResultShape,
   provider: z.literal('crux'),
   dataType: z.literal('field_current'),
   scope: ScopeSchema,
+  requestedKey: CruxKeySchema.optional().describe('The URL or origin perfkit asked CrUX for.'),
+  returnedKey: CruxKeySchema.optional().describe('The key CrUX reported for the returned record.'),
   collectionPeriod: CollectionPeriodSchema.optional(),
   metrics: FieldMetricsSchema.optional(),
+  omittedMetrics: z
+    .array(MetricNameSchema)
+    .optional()
+    .describe('Metrics perfkit requested that Google returned no data for. Absent data, not zero.'),
 });
 export type FieldCurrentResult = z.infer<typeof FieldCurrentResultSchema>;
 
