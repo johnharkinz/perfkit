@@ -1,0 +1,3 @@
+# Validate target URLs syntactically; DNS checks are opt-in
+
+perfkit never fetches the target URL itself: it only passes it to Google, which does the fetching. Server-side request forgery against our own network is therefore not the threat, so we reject unsafe targets by syntax alone (http/https only, length cap, no credentials, no loopback/private/link-local/metadata IP literals, no `localhost`/`.local`/`.internal` hosts) and leave DNS-resolution checks off by default behind `PERFKIT_DNS_CHECK=1`. The handoff asked for DNS and redirect checks; DNS adds latency for little protection, and PSI's redirects can't be observed before the call, so we report PSI's final URL instead.
