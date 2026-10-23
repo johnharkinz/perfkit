@@ -25,17 +25,31 @@ export class CapturedStream extends Writable {
 export interface Perfkit {
   client: Client;
   stderr: CapturedStream;
+  /** Every backoff delay (ms) perfkit asked to wait; the harness returns at once instead of waiting. */
+  sleeps: number[];
   close(): Promise<void>;
 }
 
+export interface ConnectOptions {
+  fetch: typeof fetch;
+  env?: Record<string, string>;
+  /** Jitter source for backoff (default Math.random). */
+  random?: () => number;
+}
+
 /** Connects an in-memory MCP client to the real perfkit server, with an injected fetch. */
-export async function connectPerfkit(options: { fetch: typeof fetch; env?: Record<string, string> }): Promise<Perfkit> {
+export async function connectPerfkit(options: ConnectOptions): Promise<Perfkit> {
   const stderr = new CapturedStream();
+  const sleeps: number[] = [];
   const app = createApp({
     env: options.env ?? { GOOGLE_API_KEY: TEST_API_KEY },
     fetch: options.fetch,
     stderr,
     now: () => new Date('2026-10-23T12:00:00.000Z'),
+    sleep: async (ms) => {
+      sleeps.push(ms);
+    },
+    ...(options.random ? { random: options.random } : {}),
   });
   const server = createServer(app);
   const client = new Client({ name: 'perfkit-test', version: '0.0.0' });
@@ -44,6 +58,7 @@ export async function connectPerfkit(options: { fetch: typeof fetch; env?: Recor
   return {
     client,
     stderr,
+    sleeps,
     async close() {
       await client.close();
       await server.close();
