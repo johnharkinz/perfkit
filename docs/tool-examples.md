@@ -96,7 +96,6 @@ Abridged result (illustrative values):
   "run": {
     "fetchTime": "2026-10-23T11:59:41.000Z",
     "formFactor": "mobile",
-    "throttlingMethod": "simulate",
     "benchmarkIndex": 2400,
     "totalTimeMs": 14200,
     "runWarnings": []
