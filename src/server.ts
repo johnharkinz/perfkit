@@ -1,7 +1,9 @@
 /**
- * MCP adapter: the only module (with main.ts) that imports the MCP SDK.
+ * MCP adapter: the only module that turns tool definitions into MCP tools.
  * Registers every tool definition and turns its result into a CallToolResult
- * with structuredContent plus the same JSON as a text block.
+ * with structuredContent plus the same JSON as a text block. The MCP SDK is
+ * imported only here and in start.ts (the stdio transport); ESLint also
+ * allows it in main.ts, which needs none today.
  */
 import { McpServer } from '@modelcontextprotocol/server';
 import type { AppDeps } from './app.js';
