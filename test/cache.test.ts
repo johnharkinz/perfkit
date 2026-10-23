@@ -99,6 +99,52 @@ describe('provider result cache', () => {
     expect(fetch.calls).toHaveLength(2);
   });
 
+  it('caches a 404 no_data result for the 12 hour current field data lifetime', async () => {
+    const fetch = fakeFetch(() => ({ status: 404, body: fixture('crux/current-not-found.json') }));
+    perfkit = await connectPerfkit({ fetch });
+
+    const first = await cruxCurrent(perfkit, ARGS);
+    perfkit.clock.advance(12 * HOUR - 1);
+    const second = await cruxCurrent(perfkit, ARGS);
+    perfkit.clock.advance(1);
+    const expired = await cruxCurrent(perfkit, ARGS);
+
+    expect(first).toMatchObject({ status: 'no_data', cached: false });
+    expect(second).toMatchObject({ status: 'no_data', cached: true, cachedAt: TEST_START_TIME });
+    expect(expired).toMatchObject({ status: 'no_data', cached: false });
+    expect(fetch.calls).toHaveLength(2);
+  });
+
+  it('keys on scope and the queried target: URL and origin scope, and pages sharing an origin', async () => {
+    const fetch = cruxOk();
+    perfkit = await connectPerfkit({ fetch });
+
+    await cruxCurrent(perfkit, ARGS);
+    const origin = await cruxCurrent(perfkit, { ...ARGS, scope: 'origin' });
+    const sameOrigin = await cruxCurrent(perfkit, {
+      ...ARGS,
+      url: 'https://developer.chrome.com/blog/',
+      scope: 'origin',
+    });
+
+    expect(origin['cached']).toBe(false);
+    expect(sameOrigin['cached']).toBe(true);
+    expect(fetch.calls).toHaveLength(2);
+  });
+
+  it('keys ALL separately from a single device', async () => {
+    const fetch = cruxOk();
+    perfkit = await connectPerfkit({ fetch });
+
+    await cruxCurrent(perfkit, ARGS);
+    const all = await cruxCurrent(perfkit, { ...ARGS, device: 'ALL' });
+    const allAgain = await cruxCurrent(perfkit, { ...ARGS, device: 'ALL' });
+
+    expect(all).toMatchObject({ device: 'ALL', cached: false });
+    expect(allAgain['cached']).toBe(true);
+    expect(fetch.calls).toHaveLength(2);
+  });
+
   it('does not cache errors: the next identical call fetches again', async () => {
     let failing = true;
     const fetch = fakeFetch(() =>

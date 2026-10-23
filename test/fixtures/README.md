@@ -8,6 +8,14 @@ Offline tests serve these files through a fake `fetch`.
 | ----------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | `crux/current-url-phone.json` | `chromeuxreport.googleapis.com/v1/records:queryRecord` | `{"url":"https://developer.chrome.com/","formFactor":"PHONE","metrics":[INP,LCP,CLS,FCP,TTFB]}` |
 
-Variants (aliases, missing metrics, 404, 429/5xx) are derived from these files inside the tests rather than saved separately.
+Saved variants of the current endpoint (same documented shapes):
+
+| File                                  | Variant                                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `crux/current-origin-phone.json`      | Origin record: `{"origin":"https://developer.chrome.com","formFactor":"PHONE",...}`              |
+| `crux/current-not-found.json`         | 404 body, documented verbatim in the CrUX guide (`chrome ux report data not found`)              |
+| `crux/current-url-tablet-no-inp.json` | URL record on TABLET with INP and TTFB absent (Google silently omits metrics it has no data for) |
+
+Other variants (aliases, string p75s, key mismatches, 429/5xx) are derived from these files inside the tests.
 
 When cleaning a real capture: remove any API key, project number or consumer ID, and keep the shape untouched (including CrUX's string-typed CLS values and the TTFB metric name as returned).

@@ -20,7 +20,10 @@ describe('performance_crux_current', () => {
     expect(tool).toBeDefined();
     expect(tool?.inputSchema.properties).toHaveProperty('url');
     expect(tool?.inputSchema.properties).toHaveProperty('device');
+    expect(tool?.inputSchema.properties).toHaveProperty('scope');
     expect(tool?.outputSchema?.properties).toHaveProperty('metrics');
+    expect(tool?.outputSchema?.properties).toHaveProperty('returnedKey');
+    expect(tool?.outputSchema?.properties).toHaveProperty('omittedMetrics');
     expect(tool?.description).toMatch(/field data/i);
     expect(tool?.description).toMatch(/lab/i);
     expect((tool?.description ?? '').length).toBeLessThan(600);
@@ -47,6 +50,8 @@ describe('performance_crux_current', () => {
       collectedAt: '2026-10-23T12:00:00.000Z',
       cached: false,
       warnings: [],
+      requestedKey: { url: 'https://developer.chrome.com/', formFactor: 'PHONE' },
+      returnedKey: { url: 'https://developer.chrome.com/', formFactor: 'PHONE' },
       collectionPeriod: { start: '2026-09-24', end: '2026-10-21' },
       metrics: {
         INP: {
@@ -110,6 +115,7 @@ describe('performance_crux_current', () => {
           provenance: { source: 'crux', cruxMetric: 'experimental_time_to_first_byte' },
         },
       },
+      omittedMetrics: [],
     });
   });
 
