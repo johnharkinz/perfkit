@@ -6,7 +6,9 @@
  * `omittedMetrics`.
  */
 import * as z from 'zod';
+import { CRUX_REQUEST_METRICS } from '../domain/metrics.js';
 import { normalizeCruxCurrent } from '../domain/normalize-field.js';
+import { withCacheFields } from '../infra/cache.js';
 import { errorFieldCurrentResult, FieldCurrentResultSchema, type FieldCurrentResult } from '../domain/response.js';
 import { displayForInvalid, parseTarget } from '../security/target.js';
 import type { ToolDefinition } from './tool.js';
@@ -35,14 +37,21 @@ export const cruxCurrentTool: ToolDefinition<typeof InputSchema, typeof FieldCur
       return errorFieldCurrentResult({ ...base, requestedUrl: displayForInvalid(args.url) }, parsed.error.toInfo());
     }
     const { target } = parsed;
-    const outcome = await ctx.deps.crux.queryCurrent({
-      scope: 'url',
-      target: target.url,
-      formFactor: args.device,
-      signal: ctx.signal,
+    const lookup = await ctx.deps.cache.getOrLoad({
+      kind: 'cruxCurrent',
+      key: { provider: 'crux', target: target.url, scope: 'url', device: args.device, metrics: CRUX_REQUEST_METRICS },
       logger: ctx.logger,
+      load: () =>
+        ctx.deps.crux.queryCurrent({
+          scope: 'url',
+          target: target.url,
+          formFactor: args.device,
+          signal: ctx.signal,
+          logger: ctx.logger,
+        }),
     });
-    return normalizeCruxCurrent(outcome.record, { ...base, requestedUrl: target.display });
+    const outcome = lookup.value;
+    return withCacheFields(normalizeCruxCurrent(outcome.record, { ...base, requestedUrl: target.display }), lookup);
   },
 
   errorResult(args, error, ctx) {

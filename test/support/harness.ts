@@ -22,20 +22,41 @@ export class CapturedStream extends Writable {
   }
 }
 
+export const TEST_START_TIME = '2026-10-23T12:00:00.000Z';
+
+/** A fixed clock that only moves when a test advances it. */
+export interface TestClock {
+  now(): Date;
+  advance(ms: number): void;
+}
+
+export function testClock(start = TEST_START_TIME): TestClock {
+  let t = new Date(start).getTime();
+  return {
+    now: () => new Date(t),
+    advance: (ms) => {
+      t += ms;
+    },
+  };
+}
+
 export interface Perfkit {
   client: Client;
   stderr: CapturedStream;
+  /** The server's clock: fixed at TEST_START_TIME until advanced. */
+  clock: TestClock;
   close(): Promise<void>;
 }
 
 /** Connects an in-memory MCP client to the real perfkit server, with an injected fetch. */
 export async function connectPerfkit(options: { fetch: typeof fetch; env?: Record<string, string> }): Promise<Perfkit> {
   const stderr = new CapturedStream();
+  const clock = testClock();
   const app = createApp({
     env: options.env ?? { GOOGLE_API_KEY: TEST_API_KEY },
     fetch: options.fetch,
     stderr,
-    now: () => new Date('2026-10-23T12:00:00.000Z'),
+    now: clock.now,
   });
   const server = createServer(app);
   const client = new Client({ name: 'perfkit-test', version: '0.0.0' });
@@ -44,6 +65,7 @@ export async function connectPerfkit(options: { fetch: typeof fetch; env?: Recor
   return {
     client,
     stderr,
+    clock,
     async close() {
       await client.close();
       await server.close();
