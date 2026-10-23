@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import type { Writable } from 'node:stream';
 import { createProviderCache, type ProviderCache } from './infra/cache.js';
 import { loadConfig, type Config, type Env } from './infra/config.js';
-import { createHttpClient } from './infra/http.js';
+import { createHttpClient, type Sleep } from './infra/http.js';
 import { createLogger, type Logger } from './infra/logger.js';
 import { createCruxClient, type CruxClient } from './providers/crux.js';
 import { createSecretScrubber } from './security/secrets.js';
@@ -35,6 +35,10 @@ export interface AppIo {
   newCorrelationId?: () => string;
   /** DNS resolver for PERFKIT_DNS_CHECK (defaults to the system resolver). */
   lookup?: HostLookup;
+  /** Backoff wait between upstream retries (tests inject one that returns at once). */
+  sleep?: Sleep;
+  /** Jitter source in [0, 1). */
+  random?: () => number;
 }
 
 /** Throws ConfigError (with a message safe to print) when configuration is invalid. */
@@ -42,7 +46,13 @@ export function createApp(io: AppIo): AppDeps {
   const now = io.now ?? (() => new Date());
   const config = loadConfig(io.env);
   const logger = createLogger({ stream: io.stderr, now, scrub: createSecretScrubber([config.googleApiKey]) });
-  const http = createHttpClient({ fetch: io.fetch, apiKey: config.googleApiKey });
+  const http = createHttpClient({
+    fetch: io.fetch,
+    apiKey: config.googleApiKey,
+    policies: config.upstream,
+    ...(io.sleep ? { sleep: io.sleep } : {}),
+    ...(io.random ? { random: io.random } : {}),
+  });
   return {
     config,
     logger,

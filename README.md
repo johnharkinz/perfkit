@@ -20,6 +20,18 @@ claude mcp add perfkit --env GOOGLE_API_KEY=your-key -- node /absolute/path/to/p
 
 Then ask, for example: "Get current field data for https://developer.chrome.com/ on phone."
 
+## Configuration
+
+| Variable                  | Default  | Meaning                                                                 |
+| ------------------------- | -------- | ----------------------------------------------------------------------- |
+| `GOOGLE_API_KEY`          | required | Google API key; sent only in a request header, never logged or returned |
+| `PERFKIT_PSI_TIMEOUT_MS`  | `60000`  | Per-attempt timeout for PageSpeed Insights                              |
+| `PERFKIT_PSI_RETRIES`     | `1`      | Retries for PageSpeed Insights on 429, 5xx and timeouts                 |
+| `PERFKIT_CRUX_TIMEOUT_MS` | `10000`  | Per-attempt timeout for the CrUX API                                    |
+| `PERFKIT_CRUX_RETRIES`    | `3`      | Retries for the CrUX API on 429, 5xx and timeouts                       |
+
+Retries use exponential backoff with jitter. Other 4xx responses are not retried.
+
 ## Caching
 
 Results are cached in memory (per server process) so that repeat questions save API quota. A cached result has `cached: true` and `cachedAt`, and its `collectedAt` is when the data was actually fetched. Errors are never cached. You can override these optional environment variables (`0` disables caching for that kind):
